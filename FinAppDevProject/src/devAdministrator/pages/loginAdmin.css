@@ -1,0 +1,178 @@
+/* Reset + No-Scroll Guarantee */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* kill scrollbars */
+  box-sizing: border-box;
+}
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* Split screen container */
+.split-screen {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Branding sidebar */
+.branding {
+  flex: 1.2; /* 60% split */
+  background: radial-gradient(circle at top right,
+    rgba(59, 130, 246, 0.15) 0%,
+    rgba(15, 23, 42, 0) 70%), #0f172a;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* branding-content centered, footer at bottom */
+  padding: 0 8%;
+}
+
+/* Branding content block centered vertically, left aligned */
+.branding-content {
+  align-self: flex-start;   /* align to left edge */
+  margin: auto 0;           /* center vertically */
+  text-align: left;
+}
+.branding-content h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+.branding-content p {
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* Footer now sits at bottom of sidebar */
+.footer {
+  margin-top: auto;
+  text-align: left; /* align footer links left too */
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+.footer a {
+  color: #9ca3af;
+  text-decoration: underline;
+}
+.footer a:hover {
+  color: #ffffff;
+}
+
+/* Login area */
+.login {
+  flex: 1; /* 40% split */
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid #e5e4e7;
+}
+.login-box {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+}
+
+/* Security notice */
+.security-notice {
+  background: #fff7ed;
+  border-left: 4px solid #f97316;
+  padding: 16px;
+  margin-bottom: 32px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #9a3412;
+}
+
+/* Inputs */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.form label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: #374151;
+}
+.form label {
+  text-align: left;
+  display: block;
+}
+input {
+  width: 100%;
+  height: 48px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  outline: none;
+}
+.password-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.password-row a {
+  font-size: 0.85rem;
+  color: #0f172a;
+  text-decoration: none;
+}
+.password-row a:hover {
+  color: #1e293b;
+}
+
+/* Buttons */
+.login-button {
+  width: 100%;
+  height: 48px;
+  background: #0f172a;
+  color: white;
+  border-radius: 6px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+.login-button:hover {
+  background: #1e293b;
+}
+.sso {
+  margin-top: 24px;
+}
+.sso-button {
+  width: 100%;
+  height: 48px;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sso-button:hover {
+  background: #f9fafb;
+}
+
+/* Help link */
+.help {
+  margin-top: 16px;
+  text-align: center;
+}
+.help a {
+  font-size: 0.85rem;
+  color: #0f172a;
+  text-decoration: underline;
+}
+.help a:hover {
+  color: #1e293b;
+}
