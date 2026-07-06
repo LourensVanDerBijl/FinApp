@@ -1,9 +1,24 @@
+// src/main.js
 import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
-import router from './router'   // import the router
+import router from './router'
+import { auth } from './firebase/firebaseManager.js'
+import { onAuthStateChanged } from 'firebase/auth'
 
 const app = createApp(App)
 
-app.use(router)                 // tell Vue to use the router
-app.mount('#app')
+let appInitialized = false
+
+onAuthStateChanged(auth, (user) => {
+  if (!appInitialized) {
+    app.use(router)
+    app.mount('#app')
+    appInitialized = true
+  }
+
+  if (!user) {
+    // If user is logged out, force them to login page
+    router.push('/admin/login')
+  }
+})

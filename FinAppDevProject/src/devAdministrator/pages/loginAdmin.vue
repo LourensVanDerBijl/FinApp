@@ -1,17 +1,80 @@
 <script setup>
 import { ref } from 'vue'
-import './loginAdmin.css'   // <-- import external stylesheet
+import { useRouter } from 'vue-router'
+import './loginAdmin.css'
+
+// ✅ Firebase imports
+import { auth } from '../../firebase/firebaseManager.js'
+import { 
+  signInWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  OAuthProvider, 
+  signInWithPopup 
+} from 'firebase/auth'
 
 const email = ref('')
 const password = ref('')
+const router = useRouter()
 
-function handleLogin() {
-  console.log(`Admin login attempt: ${email.value} / ${password.value}`)
-  alert(`Logging in as admin: ${email.value}`)
+// 🔑 Email/password login
+async function handleLogin() {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
+    const token = await userCredential.user.getIdToken()
+
+    const response = await fetch('https://localhost:5001/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+
+    const data = await response.json()
+    if (data.success) {
+      router.push('/admin/dashboard')
+    } else {
+      alert(`Login failed: ${data.message}`)
+    }
+  } catch (error) {
+    console.error("Frontend error:", error)
+    alert(`Error: ${error.message}`)
+  }
 }
 
-function loginWithSSO() {
-  alert("Single Sign-On login coming soon...")
+// 🔑 Generic SSO popup login
+async function loginWithProvider(providerName) {
+  let provider
+  if (providerName === 'google') {
+    provider = new GoogleAuthProvider()
+  } else if (providerName === 'microsoft') {
+    provider = new OAuthProvider('microsoft.com')
+  } else if (providerName === 'yahoo') {
+    provider = new OAuthProvider('yahoo.com')
+  }
+
+  try {
+    const result = await signInWithPopup(auth, provider)
+    const token = await result.user.getIdToken()
+
+    const response = await fetch('https://localhost:5001/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+
+    const data = await response.json()
+    if (data.success) {
+      router.push('/admin/dashboard')
+    } else {
+      alert(`SSO Login failed: ${data.message}`)
+    }
+  } catch (error) {
+    console.error("SSO popup error:", error)
+    if (error.code === 'auth/popup-blocked') {
+      alert("Popup was blocked. Please allow popups to sign in.")
+    } else {
+      alert(`SSO Error: ${error.message}`)
+    }
+  }
 }
 </script>
 
@@ -23,11 +86,9 @@ function loginWithSSO() {
         <h1>FinBine</h1>
         <p>Secure Administrator Portal</p>
       </div>
-
-      <!-- Footer now lives in the sidebar -->
       <footer class="footer">
         <p>
-          &copy; 2026 FinBine · All Rights Reserved · LL Van Der Bijl  
+          &copy; 2026 FinBine · All Rights Reserved · LL Van Der Bijl
           <br />
           <a href="/privacy">Privacy Agreement</a> ·
           <a href="/terms">Terms of Use</a>
@@ -38,7 +99,6 @@ function loginWithSSO() {
     <!-- Main Login Area -->
     <main class="login">
       <div class="login-box">
-        <!-- Security notice -->
         <div class="security-notice">
           <p>
             <strong>Restricted Access:</strong> Authorized administrators only.
@@ -46,13 +106,12 @@ function loginWithSSO() {
           </p>
         </div>
 
-        <!-- Form -->
+        <!-- Email/password form -->
         <form @submit.prevent="handleLogin" class="form">
           <div>
             <label>Email</label>
             <input v-model="email" type="email" placeholder="admin@finbine.com" required />
           </div>
-
           <div>
             <div class="password-row">
               <label>Password</label>
@@ -60,15 +119,18 @@ function loginWithSSO() {
             </div>
             <input v-model="password" type="password" placeholder="••••••••" required />
           </div>
-
           <button type="submit" class="login-button">Login</button>
         </form>
 
-        <!-- Single SSO button -->
+        <!-- SSO dropdown -->
         <div class="sso">
-          <button @click="loginWithSSO" class="sso-button">
-            Sign in with Company Account (SSO)
-          </button>
+          <label for="sso-select">Sign in with:</label>
+          <select id="sso-select" @change="loginWithProvider($event.target.value)">
+            <option disabled selected>Select provider</option>
+            <option value="google">Google</option>
+            <option value="microsoft">Microsoft</option>
+            <option value="yahoo">Yahoo</option>
+          </select>
         </div>
 
         <!-- Help link -->
@@ -81,5 +143,5 @@ function loginWithSSO() {
 </template>
 
 <style scoped>
-
+/* Scoped styles can stay empty if you’re using loginAdmin.css */
 </style>

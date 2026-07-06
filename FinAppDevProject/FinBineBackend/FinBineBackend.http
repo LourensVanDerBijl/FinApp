@@ -1,0 +1,6 @@
+@FinBineBackend_HostAddress = http://localhost:5262
+
+GET {{FinBineBackend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
