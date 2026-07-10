@@ -2,20 +2,26 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../../firebase/firebaseManager.js'
-import { startIdleTimer } from '../idleLogout.js'   // ✅ helper for auto-logout
+import { startIdleTimer } from '../idleLogout.js'
+
+// Import the NavBar and tab components
+import DashboardNavBar from '../components/dashboardNavBar.vue'
+import DashboardOverview from '../components/dashboardOverview.vue'
+import DashboardMembership from '../components/dashboardMembership.vue'
+import DashboardRequest from '../components/dashboardRequest.vue'
+import DashboardMonitoring from '../components/dashboardMonitoring.vue'
 
 const router = useRouter()
-
-// Display admin email if available
 const adminName = ref(auth.currentUser?.email || "Admin User")
 
-// Manual logout
+// Track which tab is active (default: overview)
+const activeTab = ref("overview")
+
 function handleLogout() {
   auth.signOut()
   router.push('/admin/login')
 }
 
-// Start idle timer when dashboard mounts
 onMounted(() => {
   startIdleTimer(router)
 })
@@ -23,59 +29,34 @@ onMounted(() => {
 
 <template>
   <div class="dashboard">
-    <header class="dashboard-header">
-      <h1>FinBine Admin Dashboard</h1>
-      <button @click="handleLogout" class="logout-button">Logout</button>
-    </header>
+    <!-- Navbar always on top, passes activeTab state -->
+    <DashboardNavBar v-model:activeTab="activeTab" />
 
     <main class="dashboard-content">
-      <h2>Welcome, {{ adminName }}</h2>
-
-      <div class="stats-grid">
-        <div class="stat-card">
-          <h3>Total Users</h3>
-          <p>42</p>
-        </div>
-        <div class="stat-card">
-          <h3>Transactions</h3>
-          <p>128</p>
-        </div>
-        <div class="stat-card">
-          <h3>Revenue</h3>
-          <p>$12,340</p>
-        </div>
-      </div>
+      <!-- Conditional rendering of tab components -->
+      <DashboardOverview v-if="activeTab === 'overview'" />
+      <DashboardMembership v-else-if="activeTab === 'memberships'" />
+      <DashboardRequest v-else-if="activeTab === 'requests'" />
+      <DashboardMonitoring v-else-if="activeTab === 'monitoring'" />
     </main>
   </div>
 </template>
 
 <style scoped>
 .dashboard {
-  padding: 2rem;
+  min-height: 100vh;
+  width: 100%;
   font-family: Arial, sans-serif;
-}
-.dashboard-header {
+  background-color: white;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
 }
-.logout-button {
-  background: #c0392b;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-}
-.stats-grid {
+.dashboard-content {
+  height: calc(100vh - 80px); /* full screen minus navbar height */
+  margin: 0;
+  padding: 0;
+  overflow: hidden;           /* prevent scrollbars */
   display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-.stat-card {
-  flex: 1;
-  background: #f4f4f4;
-  padding: 1rem;
-  border-radius: 6px;
-  text-align: center;
+  flex-direction: column;
 }
 </style>

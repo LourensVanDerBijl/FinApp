@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\BackEnd\\FinBineBackend\\FinBineBackend.csproj": {}
+    "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\FinAppDevProject\\FinBineBackend\\FinBineBackend.csproj": {}
   },
   "projects": {
-    "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\BackEnd\\FinBineBackend\\FinBineBackend.csproj": {
+    "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\FinAppDevProject\\FinBineBackend\\FinBineBackend.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\BackEnd\\FinBineBackend\\FinBineBackend.csproj",
+        "projectUniqueName": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\FinAppDevProject\\FinBineBackend\\FinBineBackend.csproj",
         "projectName": "FinBineBackend",
-        "projectPath": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\BackEnd\\FinBineBackend\\FinBineBackend.csproj",
+        "projectPath": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\FinAppDevProject\\FinBineBackend\\FinBineBackend.csproj",
         "packagesPath": "C:\\Users\\loure\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\BackEnd\\FinBineBackend\\obj\\",
+        "outputPath": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\FinAppDevProject\\FinBineBackend\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

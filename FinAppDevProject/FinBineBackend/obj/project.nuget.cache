@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "5rxLNnv8vhs=",
+  "dgSpecHash": "nNrH7NWUw2U=",
   "success": true,
-  "projectFilePath": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\BackEnd\\FinBineBackend\\FinBineBackend.csproj",
+  "projectFilePath": "C:\\Users\\loure\\OneDrive\\Documents\\Dev_Projects\\Fin-App\\FinApp\\FinAppDevProject\\FinBineBackend\\FinBineBackend.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\loure\\.nuget\\packages\\firebaseadmin\\3.5.0\\firebaseadmin.3.5.0.nupkg.sha512",
     "C:\\Users\\loure\\.nuget\\packages\\google.api.gax\\4.13.1\\google.api.gax.4.13.1.nupkg.sha512",
