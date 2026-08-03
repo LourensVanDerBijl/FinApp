@@ -3,20 +3,20 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import './loginAdmin.css'
 
-// ✅ Firebase imports
 import { auth } from '../../firebase/firebaseManager.js'
 import { 
   signInWithEmailAndPassword, 
   GoogleAuthProvider, 
-  OAuthProvider, 
   signInWithPopup 
 } from 'firebase/auth'
+
+// Lucide icons (correct package)
+import { Shield, Check, Users, Mail, Lock, Eye, AlertCircle } from '@lucide/vue'
 
 const email = ref('')
 const password = ref('')
 const router = useRouter()
 
-// 🔑 Email/password login
 async function handleLogin() {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
@@ -40,17 +40,8 @@ async function handleLogin() {
   }
 }
 
-// 🔑 Generic SSO popup login
-async function loginWithProvider(providerName) {
-  let provider
-  if (providerName === 'google') {
-    provider = new GoogleAuthProvider()
-  } else if (providerName === 'microsoft') {
-    provider = new OAuthProvider('microsoft.com')
-  } else if (providerName === 'yahoo') {
-    provider = new OAuthProvider('yahoo.com')
-  }
-
+async function loginWithGoogle() {
+  const provider = new GoogleAuthProvider()
   try {
     const result = await signInWithPopup(auth, provider)
     const token = await result.user.getIdToken()
@@ -65,83 +56,105 @@ async function loginWithProvider(providerName) {
     if (data.success) {
       router.push('/admin/dashboard')
     } else {
-      alert(`SSO Login failed: ${data.message}`)
+      alert(`Google Login failed: ${data.message}`)
     }
   } catch (error) {
-    console.error("SSO popup error:", error)
-    if (error.code === 'auth/popup-blocked') {
-      alert("Popup was blocked. Please allow popups to sign in.")
-    } else {
-      alert(`SSO Error: ${error.message}`)
-    }
+    console.error("Google SSO error:", error)
+    alert(`Google SSO Error: ${error.message}`)
   }
 }
 </script>
 
 <template>
   <div class="split-screen">
-    <!-- Sidebar -->
+    <!-- Left Branding Panel -->
     <aside class="branding">
       <div class="branding-content">
-        <h1>FinBine</h1>
-        <p>Secure Administrator Portal</p>
+        <img src="../../assets/SVG/logo.svg" alt="FinBine Logo" class="brand-logo" />
+        <h1 class="brand-title">FinBine</h1>
+        <h2 class="brand-subtitle">Enterprise Administration</h2>
+        <div class="brand-line"></div>
+        <ul class="brand-values">
+          <li><Shield class="icon-svg" /> <span>Secure.</span></li>
+          <li><Check class="icon-svg" /> <span>Reliable.</span></li>
+          <li><Users class="icon-svg" /> <span>Trusted.</span></li>
+        </ul>
       </div>
       <footer class="footer">
-        <p>
-          &copy; 2026 FinBine · All Rights Reserved · LL Van Der Bijl
-          <br />
-          <a href="/privacy">Privacy Agreement</a> ·
-          <a href="/terms">Terms of Use</a>
-        </p>
+        © 2026 FinBine · 
+        <a href="/privacy">Privacy Policy</a> · 
+        <a href="/terms">Terms of Service</a>
       </footer>
+      <!-- Watermark -->
+      <img src="../../assets/SVG/logo.svg" alt="FinBine Watermark" class="branding-watermark" />
     </aside>
 
-    <!-- Main Login Area -->
+    <!-- Right Login Panel -->
     <main class="login">
       <div class="login-box">
+        <!-- Administrator Notice -->
         <div class="security-notice">
+          <div class="notice-header">
+            <Shield class="icon-svg" />
+            <span class="notice-title">Administrator Portal</span>
+          </div>
           <p>
-            <strong>Restricted Access:</strong> Authorized administrators only.
-            Unauthorized login attempts will be logged and may lead to disciplinary or legal action.
+            This portal is reserved for authorized FinBine administrators.<br />
+            Unauthorized access attempts are monitored, logged, and may be investigated in accordance with applicable laws and FinBine security policies.
           </p>
+          <div class="notice-divider"></div>
+          <div class="notice-warning">
+            <AlertCircle class="icon-svg" />
+            <span>Access restricted to administrators only.</span>
+          </div>
         </div>
+
+        <!-- Group Member Link (outside card) -->
+        <a href="/user-login" class="subtle-link">← Group Member? Go to User Login</a>
 
         <!-- Email/password form -->
         <form @submit.prevent="handleLogin" class="form">
-          <div>
-            <label>Email</label>
-            <input v-model="email" type="email" placeholder="admin@finbine.com" required />
+          <div class="input-group">
+            <label for="email">Email</label>
+            <div class="input-wrapper">
+              <Mail class="input-icon" />
+              <input id="email" v-model="email" type="email" placeholder="admin@finbine.com" required />
+            </div>
           </div>
-          <div>
+          <div class="input-group">
             <div class="password-row">
-              <label>Password</label>
+              <label for="password">Password</label>
               <a href="/forgot-password">Forgot password?</a>
             </div>
-            <input v-model="password" type="password" placeholder="••••••••" required />
+            <div class="input-wrapper">
+              <Lock class="input-icon" />
+              <input id="password" v-model="password" type="password" placeholder="Enter your password" required />
+              <Eye class="input-eye" />
+            </div>
           </div>
-          <button type="submit" class="login-button">Login</button>
+          <button type="submit" class="login-button">
+            <Lock class="icon-svg" /> Login
+          </button>
         </form>
 
-        <!-- SSO dropdown -->
-        <div class="sso">
-          <label for="sso-select">Sign in with:</label>
-          <select id="sso-select" @change="loginWithProvider($event.target.value)">
-            <option disabled selected>Select provider</option>
-            <option value="google">Google</option>
-            <option value="microsoft">Microsoft</option>
-            <option value="yahoo">Yahoo</option>
-          </select>
+        <!-- Divider -->
+        <div class="divider">
+          <span class="line"></span>
+          <span class="or">OR</span>
+          <span class="line"></span>
         </div>
+
+        <!-- Google Sign-In -->
+        <button @click="loginWithGoogle" class="google-button">
+          <img src="../../assets/SVG/svgGoogle.svg" alt="Google" /> Sign in with Google
+        </button>
 
         <!-- Help link -->
         <div class="help">
-          <a href="/help">Need Help?</a>
+          <p>Need Help?</p>
+          <a href="/help">Contact Support</a>
         </div>
       </div>
     </main>
   </div>
 </template>
-
-<style scoped>
-/* Scoped styles can stay empty if you’re using loginAdmin.css */
-</style>
