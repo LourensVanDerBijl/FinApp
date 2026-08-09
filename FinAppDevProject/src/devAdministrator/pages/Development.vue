@@ -1,6 +1,6 @@
 <script setup>
-import SectionCard from '../../sharedComponents/SectionCard.vue'
-import StatusBadge from '../../sharedComponents/StatusBadge.vue'
+import SectionCard from '../sharedComponents/SectionCard.vue'
+import StatusBadge from '../sharedComponents/StatusBadge.vue'
 
 // Example placeholder data
 const devServices = [

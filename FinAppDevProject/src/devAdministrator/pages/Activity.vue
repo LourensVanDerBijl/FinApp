@@ -1,7 +1,7 @@
 <script setup>
 import { defineProps } from 'vue'
-import SectionCard from '../../sharedComponents/SectionCard.vue'
-import StatusBadge from '../../sharedComponents/StatusBadge.vue'
+import SectionCard from '../sharedComponents/SectionCard.vue'
+import StatusBadge from '../sharedComponents/StatusBadge.vue'
 
 const props = defineProps({
   activities: {

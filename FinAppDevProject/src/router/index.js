@@ -19,8 +19,9 @@ const routes = [
 
   {
     path: '/admin',
-    component: AppLayout,   // layout wrapper
+    component: AppLayout,
     children: [
+      { path: '', redirect: '/admin/dashboard' }, // ✅ redirect root /admin
       { path: 'dashboard', name: 'AdminDashboard', component: Dashboard },
       { path: 'groups', name: 'AdminGroups', component: Groups },
       { path: 'activity', name: 'AdminActivity', component: Activity },
@@ -37,9 +38,7 @@ const router = createRouter({
   routes,
 })
 
-// ✅ Modern guard style
 router.beforeEach((to) => {
-  // Protect all admin child routes
   if (to.path.startsWith('/admin') && to.name !== 'AdminLogin') {
     const user = auth.currentUser
     if (!user) {
