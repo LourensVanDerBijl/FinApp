@@ -23,8 +23,6 @@ onAuthStateChanged(auth, (user) => {
     appInitialized = true
   }
 
-  if (!user) {
-    // If user is logged out, force them to login page
-    router.push('/admin/login')
-  }
+  // Router guard handles protection of /admin routes
+  // No need to force redirect here - let users access public pages
 })

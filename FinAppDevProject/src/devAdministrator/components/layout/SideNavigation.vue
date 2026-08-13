@@ -4,6 +4,7 @@ import { LayoutDashboard, Users, Activity, ServerCog, Ticket, Code, Settings, Lo
 import { RouterLink, useRouter } from 'vue-router'
 import { auth } from '../../../firebase/firebaseManager.js'
 import { signOut } from 'firebase/auth'
+import { adminInfo } from '../../data/mockData.js'   // ✅ import admin info
 
 const router = useRouter()
 
@@ -47,8 +48,9 @@ async function handleLogout() {
         <!-- Red profile icon instead of image -->
         <UserCircle size="28" class="profile-icon" />
         <div>
-          <p class="admin-name">Louis Van Der Bijl</p>
-          <p class="admin-role">Super Administrator</p>
+          <!-- ✅ dynamic values from mockData -->
+          <p class="admin-name">{{ adminInfo.name }}</p>
+          <p class="admin-role">{{ adminInfo.role }}</p>
         </div>
       </div>
       <button class="logout" @click="handleLogout">
@@ -162,14 +164,14 @@ async function handleLogout() {
   font-weight: 500;
   color: #ffffff;
   margin: 0;
-  line-height: 1; /* tighter spacing */
+  line-height: 1;
 }
 
 .admin-role {
   font-size: 0.6rem;
   color: #94a3b8;
   margin: 0;
-  line-height: 1; /* tighter spacing */
+  line-height: 1;
 }
 
 .logout {

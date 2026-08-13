@@ -1,14 +1,31 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>4b2651b8-978a-4207-8c7a-8f79c24e2569</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FirebaseAdmin" Version="3.5.0" />
     <PackageReference Include="Google.Apis.Auth" Version="1.75.0" />
+    <PackageReference Include="Google.Cloud.Firestore" Version="4.4.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="AdminAuthentication\Logs\" />
+    <Folder Include="PlatformHealth\Controllers\" />
+    <Folder Include="PlatformHealth\Models\" />
+    <Folder Include="PlatformHealth\Logs\" />
+    <Folder Include="PlatformHealth\Services\" />
   </ItemGroup>
 
 </Project>

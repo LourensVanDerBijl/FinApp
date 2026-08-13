@@ -4,7 +4,8 @@
     {
         public bool Success { get; set; }
         public string Message { get; set; } = string.Empty;
-        public string? AdminId { get; set; }
-        public string? Email { get; set; }
+        public string? PreferName { get; set; }
+        public string? Surname { get; set; }
+        public string? AccountType { get; set; }
     }
 }

@@ -8,8 +8,8 @@ const props = defineProps({
 // ✅ Compute badge class based on status
 const badgeClass = computed(() => {
   switch (props.status) {
-    case 'Healthy':
-      return 'healthy'
+    case 'Online':
+      return 'online'
     case 'Warning':
       return 'warning'
     case 'Critical':
@@ -53,7 +53,7 @@ const badgeClass = computed(() => {
   flex-shrink: 0;
 }
 
-.status-badge.healthy .status-dot {
+.status-badge.online .status-dot {
   background-color: #10B981; /* green */
 }
 

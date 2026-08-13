@@ -44,6 +44,7 @@ html, body {
   font-size: 44px;
   font-weight: 700;
   margin: 0 0 6px 0;
+  color: #eff2f2;
 }
 .brand-subtitle {
   font-size: 18px;
@@ -108,7 +109,7 @@ html, body {
   display: flex;
   justify-content: center;
   border-left: 1px solid #D1D5DB;
-  padding-top: 40px;
+  padding-top: 25px;
   padding-bottom: 40px;
 }
 .login-box {
@@ -130,7 +131,7 @@ html, body {
   padding: 12px 20px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   text-align: left;
   font-size: 11px; /* smaller */
   color: #111827;
@@ -249,7 +250,7 @@ input:focus {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background-color: #022c22;
+  background-color: #111827;
   color: white;
   height: 44px;
   border-radius: 6px;

@@ -3,29 +3,41 @@ import { defineProps } from 'vue'
 import SectionCard from '../../sharedComponents/SectionCard.vue'
 import StatusBadge from '../../sharedComponents/StatusBadge.vue'
 
-// ✅ Import icons from Lucide (or your chosen icon library)
 import { Database, Server, Cloud, Cpu, RefreshCw } from 'lucide-vue-next'
 
 const props = defineProps({
   services: Array
 })
 
-// ✅ Mock "last checked" timestamp for now
 const lastChecked = '12s ago'
 
-// ✅ Helper function to map service names to icons
 function getIcon(name) {
   switch (name) {
     case 'Firebase':
       return Cloud
     case 'PostgreSQL':
       return Database
-    case 'C# API':
+    case 'C#':
       return Server
     case 'Netlify':
       return Cpu
     default:
       return Server
+  }
+}
+
+// Maps the backend's status text to the existing CSS class names,
+// without needing to rename anything in the stylesheet.
+function getStatusClass(status) {
+  switch (status) {
+    case 'Online':
+      return 'healthy'
+    case 'Critical':
+      return 'critical'
+    case 'Offline':
+      return 'offline'
+    default:
+      return ''
   }
 }
 </script>
@@ -47,7 +59,7 @@ function getIcon(name) {
           <div class="service-name">Service</div>
           <div class="service-status">Status</div>
           <div class="service-latency">Latency</div>
-          <div class="service-errors">Errors</div>
+          <div class="service-errors">Uptime</div>
         </li>
 
         <!-- ✅ Data rows -->
@@ -55,7 +67,7 @@ function getIcon(name) {
           v-for="(service, index) in services"
           :key="index"
           class="service-row"
-          :class="service.status.toLowerCase()"
+          :class="getStatusClass(service.status)"
         >
           <div class="service-name">
             <component
@@ -71,11 +83,8 @@ function getIcon(name) {
           <div class="service-latency">
             {{ service.responseTime !== null ? service.responseTime + ' ms' : '--' }}
           </div>
-          <div
-            class="service-errors"
-            :class="{ 'has-errors': service.errors > 0 }"
-          >
-            {{ service.errors }} errors
+          <div class="service-errors">
+            {{ service.uptime }} min
           </div>
         </li>
       </ul>
@@ -84,7 +93,7 @@ function getIcon(name) {
 </template>
 
 <style scoped>
-/* ✅ Card container */
+/* unchanged — exactly as you had it */
 .platform-card {
   background-color: #FFFFFF;
   border: 1px solid #E5E7EB;
@@ -97,7 +106,6 @@ function getIcon(name) {
   height: 100%;
 }
 
-/* ✅ Section header (match Recent Activity height) */
 .section-header {
   background-color: #112135;
   height: 26px;
@@ -138,7 +146,6 @@ function getIcon(name) {
   transform: rotate(90deg);
 }
 
-/* ✅ Scroll area */
 .platform-scroll {
   flex: 1;
   overflow-y: auto;
@@ -150,7 +157,6 @@ ul {
   padding: 0;
 }
 
-/* ✅ Header row */
 .service-header {
   display: grid;
   grid-template-columns: 2fr 1.5fr 1fr 1fr;
@@ -161,12 +167,11 @@ ul {
   font-size: 9px;
 }
 
-/* ✅ Service rows with Excel-style backgrounds */
 .service-row {
   display: grid;
   grid-template-columns: 2fr 1.5fr 1fr 1fr;
   align-items: center;
-  padding: 3px 10px; /* smaller row height */
+  padding: 3px 10px;
   border-bottom: 1px solid rgba(0,0,0,0.05);
   color: #1F2937;
   font-size: 9px;
@@ -177,19 +182,19 @@ ul {
 }
 
 .service-row.healthy {
-  background-color: #02a13c20; /* Excel green */
+  background-color: #02a13c20;
 }
 
 .service-row.warning {
-  background-color: #d5960315; /* Excel amber */
+  background-color: #d5960315;
 }
 
 .service-row.critical {
-  background-color: #b57f031c; /* Excel red */
+  background-color: #b57f031c;
 }
 
 .service-row.offline {
-  background-color: #c2030325; /* stronger red for offline */
+  background-color: #c2030325;
 }
 
 .service-name {
@@ -218,11 +223,11 @@ ul {
 .service-errors {
   font-weight: 600;
   font-size: 9px;
-  color: #6B7280; /* default gray */
+  color: #6B7280;
   text-align: left;
 }
 
 .service-errors.has-errors {
-  color: #c41616; /* red if >0 */
+  color: #c41616;
 }
 </style>

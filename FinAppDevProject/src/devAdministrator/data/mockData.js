@@ -1,5 +1,15 @@
 // src/devAdministrator/data/mockData.js
 
+import { ref } from 'vue'
+
+const API_BASE = 'https://localhost:5001'
+
+//Side Navigation mock data
+export const adminInfo = {
+  name: "Louis Van Der Bijl",
+  role: "Super Admin"
+}
+
 export const stats = [
   { title: 'Total Groups', value: 142, icon: 'groups' },
   { title: 'Total Users', value: 318, icon: 'users' },
@@ -12,8 +22,8 @@ export const subscriptionData = {
   series: [38, 104],
   labels: ['Premium Groups', 'Free Groups'],
   total: 142,
-  colors: ['#0d045d', '#0a7633'],       // slice colors
-  seriesPercent: [27, 73]               // precomputed percentages
+  colors: ['#0d045d', '#0a7633'],
+  seriesPercent: [27, 73]
 }
 
 export const activities = [
@@ -22,14 +32,6 @@ export const activities = [
   { user: 'Michael Brown', action: 'added a new user', group: 'Brown Enterprises', time: '25m ago' },
   { user: 'Sarah Lee', action: 'cancelled subscription', group: 'Lee Household', time: '1h ago' },
   { user: 'Admin', action: 'logged in', group: null, time: '2h ago' }
-]
-
-// ✅ Updated Platform Health mock data structure
-export const platformHealth = [
-  { name: 'Firebase', status: 'Offline', responseTime: 42, errors: 0 },
-  { name: 'PostgreSQL', status: 'Healthy', responseTime: 18, errors: 1 },
-  { name: 'C# API', status: 'Critical', responseTime: 143, errors: 2 },
-  { name: 'Netlify', status: 'Healthy', responseTime: null, errors: 0 }
 ]
 
 // ✅ New grouped System Resources structure
@@ -80,15 +82,73 @@ export const systemResources = [
   }
 ]
 
-export const logs = [
-  { time: '03 Aug 2026 10:23:45', type: 'API Error', source: 'User Service', message: 'Failed to update user profile: Validation error', level: 'Error' },
-  { time: '03 Aug 2026 10:21:16', type: 'System', source: 'Background Jobs', message: 'Group usage statistics job completed successfully, Group usage statistics job completed successfully, Group usage statistics job completed successfully, Group usage statistics job completed successfully Group usage statistics job completed successfully, Group usage statistics job completed successfully, Group usage statistics job completed successfully, Group usage statistics job completed successfully', level: 'Info' },
-  { time: '03 Aug 2026 10:12:08', type: 'Auth', source: 'Authentication Service', message: 'User login successful: louis@finbine.com', level: 'Info' },
-  { time: '03 Aug 2026 10:12:08', type: 'API Error', source: 'Payment Service', message: 'Payment gateway timeout', level: 'Warning' },
-  { time: '03 Aug 2026 09:55:32', type: 'System', source: 'Frontend Hosting', message: 'Deployment completed successfully', level: 'Success' },
-  { time: '03 Aug 2026 09:40:12', type: 'Database', source: 'SQL Database', message: 'Backup completed', level: 'Info' },
-  { time: '03 Aug 2026 09:30:00', type: 'API', source: 'Backend', message: 'New API key issued', level: 'Info' },
-  { time: '03 Aug 2026 09:15:45', type: 'Auth', source: 'Authentication Service', message: 'Password reset requested', level: 'Warning' },
-  { time: '03 Aug 2026 09:05:20', type: 'System', source: 'Background Jobs', message: 'Cleanup job executed', level: 'Info' },
-  { time: '03 Aug 2026 08:50:00', type: 'API Error', source: 'Payment Service', message: 'Transaction declined', level: 'Error' }
-]
+// ---------------------------------------------------------
+// Platform Health — live data from the backend
+// ---------------------------------------------------------
+export const platformHealth = ref([])
+
+async function loadPlatformHealth() {
+  try {
+    const response = await fetch(`${API_BASE}/api/platform-health/status`)
+    if (!response.ok) throw new Error('Failed to fetch platform health')
+    platformHealth.value = await response.json()
+  } catch (err) {
+    console.error('Error fetching platform health:', err)
+  }
+}
+
+// Call this from the dashboard's refresh button — it tells the backend
+// to run a fresh check right now, not just re-read the cached result.
+export async function refreshPlatformHealth() {
+  try {
+    const response = await fetch(`${API_BASE}/api/platform-health/refresh`, {
+      method: 'POST'
+    })
+    if (!response.ok) throw new Error('Failed to refresh platform health')
+    platformHealth.value = await response.json()
+  } catch (err) {
+    console.error('Error refreshing platform health:', err)
+  }
+}
+
+// Initial load
+loadPlatformHealth()
+
+// The backend re-checks every 2 minutes on its own; we just re-read
+// that cached result fairly often so the dashboard feels current.
+setInterval(loadPlatformHealth, 30000)
+
+// ---------------------------------------------------------
+// Logs — live, newest first, only fetches what's new
+// ---------------------------------------------------------
+export const logs = ref([])
+
+let lastSeenTimestamp = null
+
+async function refreshLogs() {
+  try {
+    const url = lastSeenTimestamp
+      ? `${API_BASE}/api/logs/live?since=${encodeURIComponent(lastSeenTimestamp)}`
+      : `${API_BASE}/api/logs/live`
+
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('Failed to fetch logs')
+
+    const newLogs = await response.json()
+    if (newLogs.length === 0) return
+
+    const combined = [...newLogs, ...logs.value]
+    combined.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    logs.value = combined
+
+    lastSeenTimestamp = combined[0].timestamp
+  } catch (err) {
+    console.error('Error fetching logs:', err)
+  }
+}
+
+// Initial load — gets everything logged today so far
+refreshLogs()
+
+// From here on, each poll only asks for genuinely new logs
+setInterval(refreshLogs, 10000)
