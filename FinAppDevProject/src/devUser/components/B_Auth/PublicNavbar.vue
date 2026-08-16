@@ -2,6 +2,7 @@
 import logo from '../../../assets/SVG/logo.svg'
 import { RouterLink, useRoute } from 'vue-router'
 import { ref } from 'vue'
+import { ChevronDown, Menu, X } from 'lucide-vue-next'
 
 const route = useRoute()
 const mobileOpen = ref(false)
@@ -21,11 +22,11 @@ function closeMobileMenu() {
       <!-- Logo -->
       <RouterLink to="/" class="logo-link" @click="closeMobileMenu">
         <img :src="logo" alt="FinBine Logo" class="logo" />
+        <span class="wordmark">FinBine</span>
       </RouterLink>
 
       <!-- Desktop Navigation -->
       <nav class="nav-links">
-        <RouterLink to="/" :class="{ active: route.name === 'Home' }">Home</RouterLink>
         <RouterLink to="/product" :class="{ active: route.name === 'Product' }">Product</RouterLink>
         <RouterLink to="/how-it-works" :class="{ active: route.name === 'HowItWorks' }">How It Works</RouterLink>
         <RouterLink to="/security" :class="{ active: route.name === 'Security' }">Security</RouterLink>
@@ -37,37 +38,49 @@ function closeMobileMenu() {
       <!-- CTA Buttons -->
       <div class="cta-buttons">
         <RouterLink to="/user/login" class="btn sign-in">Sign In</RouterLink>
-        <RouterLink to="/product" class="btn get-started">Get Started</RouterLink>
+        <RouterLink to="/user/register" class="btn get-started">Get Started</RouterLink>
       </div>
 
       <!-- Mobile Hamburger -->
-      <button class="hamburger" @click="toggleMobileMenu">
-        <span :class="{ open: mobileOpen }"></span>
-        <span :class="{ open: mobileOpen }"></span>
-        <span :class="{ open: mobileOpen }"></span>
+      <button class="hamburger" @click="toggleMobileMenu" aria-label="Open menu">
+        <Menu size="22" />
       </button>
     </div>
 
     <!-- Mobile Menu -->
     <div v-if="mobileOpen" class="mobile-menu">
-      <RouterLink to="/" @click="closeMobileMenu">Home</RouterLink>
-      <RouterLink to="/product" @click="closeMobileMenu">Product</RouterLink>
-      <RouterLink to="/how-it-works" @click="closeMobileMenu">How It Works</RouterLink>
-      <RouterLink to="/security" @click="closeMobileMenu">Security</RouterLink>
-      <RouterLink to="/pricing" @click="closeMobileMenu">Pricing</RouterLink>
-      <RouterLink to="/resources" @click="closeMobileMenu">Resources</RouterLink>
-      <RouterLink to="/about" @click="closeMobileMenu">About Us</RouterLink>
-      <RouterLink to="/user/login" @click="closeMobileMenu" class="btn sign-in">Sign In</RouterLink>
-      <RouterLink to="/product" @click="closeMobileMenu" class="btn get-started">Get Started</RouterLink>
+      <div class="mobile-menu-header">
+        <RouterLink to="/" class="logo-link" @click="closeMobileMenu">
+          <img :src="logo" alt="FinBine Logo" class="logo" />
+          <span class="wordmark">FinBine</span>
+        </RouterLink>
+        <button class="close-btn" @click="closeMobileMenu" aria-label="Close menu">
+          <X size="20" />
+        </button>
+      </div>
+
+      <nav class="mobile-nav-links">
+        <RouterLink to="/product" @click="closeMobileMenu">Product</RouterLink>
+        <RouterLink to="/how-it-works" @click="closeMobileMenu">How It Works</RouterLink>
+        <RouterLink to="/security" @click="closeMobileMenu">Security</RouterLink>
+        <RouterLink to="/pricing" @click="closeMobileMenu">Pricing</RouterLink>
+        <RouterLink to="/resources" @click="closeMobileMenu">Resources</RouterLink>
+        <RouterLink to="/about" @click="closeMobileMenu">About Us</RouterLink>
+      </nav>
+
+      <div class="mobile-menu-footer">
+        <RouterLink to="/product" @click="closeMobileMenu" class="btn get-started full">Get Started for Free</RouterLink>
+        <RouterLink to="/user/login" @click="closeMobileMenu" class="btn sign-in full">Sign In</RouterLink>
+      </div>
     </div>
   </header>
 </template>
 
 <style scoped>
 .public-navbar {
-  background-color: #04111f;
-  color: #fff;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background-color: #FFFFFF;
+  color: #0F172A;
+  border-bottom: 1px solid #E5E7EB;
   position: sticky;
   top: 0;
   z-index: 50;
@@ -77,109 +90,175 @@ function closeMobileMenu() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
+  padding: 12px 28px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.logo-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
 }
 
 .logo {
-  height: 32px;
+  height: 28px;
   filter: brightness(0) saturate(100%) invert(29%) sepia(98%) saturate(748%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+.wordmark {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0F172A;
 }
 
 .nav-links {
   display: flex;
-  gap: 16px;
+  align-items: center;
+  gap: 30px;
 }
 
 .nav-links a {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   text-decoration: none;
-  color: #f8fafc;
-  font-size: 0.8rem;
-  transition: color 0.2s;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: color 0.15s;
+}
+
+.nav-links a:hover {
+  color: #1855b9;
 }
 
 .nav-links a.active {
-  color: #02b0a1;
+  color: #0F172A;
+  background-color: #F1F5F9;
+  border-radius: 16px;
+  padding: 5px 14px;
 }
 
 .cta-buttons {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 14px;
 }
 
 .btn {
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
   text-decoration: none;
-  transition: background 0.2s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .sign-in {
   background: none;
-  border: 1px solid #02b0a1;
-  color: #02b0a1;
+  border: none;
+  color: #0F172A;
+  padding: 8px 4px;
 }
 
 .sign-in:hover {
-  background: #02b0a1;
-  color: #fff;
+  color: #1855b9;
 }
 
 .get-started {
-  background: #02b0a1;
+  background: #1855b9;
   color: #fff;
 }
 
 .get-started:hover {
-  background: #028c81;
+  background: #123f8a;
 }
 
 .hamburger {
   display: none;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
+  color: #0F172A;
   cursor: pointer;
+  padding: 4px;
 }
 
-.hamburger span {
-  width: 20px;
-  height: 2px;
-  background: #fff;
-  transition: all 0.3s;
-}
-
-.hamburger span.open:nth-child(1) {
-  transform: rotate(45deg) translateY(6px);
-}
-.hamburger span.open:nth-child(2) {
-  opacity: 0;
-}
-.hamburger span.open:nth-child(3) {
-  transform: rotate(-45deg) translateY(-6px);
-}
-
+/* Mobile drawer */
 .mobile-menu {
+  position: fixed;
+  inset: 0;
+  background: #FFFFFF;
+  z-index: 100;
   display: flex;
   flex-direction: column;
-  background-color: #04111f;
-  padding: 12px;
-  gap: 10px;
+  padding: 14px 20px 24px;
 }
 
-.mobile-menu a {
+.mobile-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #0F172A;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.mobile-nav-links {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.mobile-nav-links a {
   text-decoration: none;
-  color: #f8fafc;
-  font-size: 0.85rem;
+  color: #1E293B;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 14px 4px;
+  border-bottom: 1px solid #F1F5F9;
 }
 
-@media (max-width: 768px) {
-  .nav-links, .cta-buttons {
+.mobile-menu-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+}
+
+.btn.full {
+  width: 100%;
+  text-align: center;
+  box-sizing: border-box;
+  padding: 12px 16px;
+}
+
+.mobile-menu-footer .sign-in {
+  border: 1px solid #CBD5E1;
+  color: #0F172A;
+}
+
+@media (max-width: 900px) {
+  .nav-links,
+  .cta-buttons {
     display: none;
   }
   .hamburger {
     display: flex;
+  }
+  .wordmark {
+    display: none;
   }
 }
 </style>

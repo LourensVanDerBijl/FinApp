@@ -11,7 +11,7 @@ const router = useRouter()
 async function handleLogout() {
   try {
     await signOut(auth) // ✅ Firebase logout
-    router.push('/admin-login') // ✅ redirect back to login page
+    router.push('/admin/login')
   } catch (error) {
     console.error("Logout error:", error)
     alert("Failed to logout. Please try again.")

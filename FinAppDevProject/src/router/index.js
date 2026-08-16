@@ -1,6 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '../devAdministrator/components/layout/AppLayout.vue'
 
+// Registration pages
+import UserRegistration from '../devUser/pages/Register/UserRegistration.vue'
+
 // User pages
 import WebHome from '../devUser/pages/B_Auth/WebHome.vue'
 import LoginUser from '../devUser/pages/A_Auth/LoginUser.vue'
@@ -14,6 +17,7 @@ import Resources from '../devUser/pages/B_Auth/Resources.vue'
 import About from '../devUser/pages/B_Auth/About.vue'
 import Privacy from '../devUser/pages/B_Auth/Privacy.vue'
 import Terms from '../devUser/pages/B_Auth/Terms.vue'
+
 
 // Admin pages
 import loginAdmin from '../devAdministrator/pages/loginAdmin.vue'
@@ -41,6 +45,9 @@ const routes = [
 
   // User routes (no guard)
   { path: '/user/login', name: 'UserLogin', component: LoginUser },
+
+  // User registration (no guard)
+  { path: '/user/register', name: 'UserRegister', component: UserRegistration },
 
   // Admin login (always accessible directly)
   { path: '/admin/login', name: 'AdminLogin', component: loginAdmin },

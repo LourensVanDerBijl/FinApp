@@ -1,7 +1,8 @@
 <script setup>
-import { defineProps } from 'vue'
+import { defineProps, computed, ref, onMounted, onUnmounted } from 'vue'
 import SectionCard from '../../sharedComponents/SectionCard.vue'
 import StatusBadge from '../../sharedComponents/StatusBadge.vue'
+import { platformHealthLastChecked, refreshPlatformHealth } from '../../data/mockData.js'
 
 import { Database, Server, Cloud, Cpu, RefreshCw } from 'lucide-vue-next'
 
@@ -9,7 +10,31 @@ const props = defineProps({
   services: Array
 })
 
-const lastChecked = '12s ago'
+// A "clock" that ticks every second, purely so lastChecked below has a
+// reason to recalculate that often — it doesn't drive anything else.
+const now = ref(new Date())
+let clockInterval = null
+
+onMounted(() => {
+  clockInterval = setInterval(() => {
+    now.value = new Date()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  clearInterval(clockInterval)
+})
+
+// Turns the real last-checked Date into a friendly "12s ago" style label.
+const lastChecked = computed(() => {
+  if (!platformHealthLastChecked.value) return 'never'
+
+  const seconds = Math.floor((now.value - platformHealthLastChecked.value) / 1000)
+
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ago`
+})
 
 function getIcon(name) {
   switch (name) {
@@ -48,7 +73,7 @@ function getStatusClass(status) {
       <h3 class="section-title">Platform Health</h3>
       <div class="last-check">
         <span>Last checked: {{ lastChecked }}</span>
-        <RefreshCw size="10" class="refresh-icon" />
+        <RefreshCw size="10" class="refresh-icon" @click="refreshPlatformHealth" />
       </div>
     </div>
 

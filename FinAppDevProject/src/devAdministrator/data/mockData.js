@@ -86,12 +86,14 @@ export const systemResources = [
 // Platform Health — live data from the backend
 // ---------------------------------------------------------
 export const platformHealth = ref([])
+export const platformHealthLastChecked = ref(null)
 
 async function loadPlatformHealth() {
   try {
     const response = await fetch(`${API_BASE}/api/platform-health/status`)
     if (!response.ok) throw new Error('Failed to fetch platform health')
     platformHealth.value = await response.json()
+    platformHealthLastChecked.value = new Date()
   } catch (err) {
     console.error('Error fetching platform health:', err)
   }
@@ -106,6 +108,7 @@ export async function refreshPlatformHealth() {
     })
     if (!response.ok) throw new Error('Failed to refresh platform health')
     platformHealth.value = await response.json()
+    platformHealthLastChecked.value = new Date()
   } catch (err) {
     console.error('Error refreshing platform health:', err)
   }

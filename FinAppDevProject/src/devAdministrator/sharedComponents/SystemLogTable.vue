@@ -81,6 +81,12 @@ const props = defineProps({
   color: #1d4ed8;            /* blue text */
 }
 
+.log-row.critical {
+  background-color: #fecaca; /* stronger red background, distinct from error */
+  color: #7f1d1d;            /* dark red text */
+  font-weight: 700;
+}
+
 /* ✅ Badge inherits row text color */
 .badge {
   padding: 2px 6px;
