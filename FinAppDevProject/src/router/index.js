@@ -8,6 +8,11 @@ import UserRegistration from '../devUser/pages/Register/UserRegistration.vue'
 import WebHome from '../devUser/pages/B_Auth/WebHome.vue'
 import LoginUser from '../devUser/pages/A_Auth/LoginUser.vue'
 
+// User Gaurded pages
+import UserGroupAssign from '../devUser/pages/A_Auth/UserGroupAssign.vue'
+import UserGroupRegistration from '../devUser/pages/A_Auth/UserGroupRegistration.vue'
+import UserGroupDashboard from '../devUser/pages/A_Auth/UserGroupDashboard.vue'
+
 // Public marketing pages
 import Product from '../devUser/pages/B_Auth/Product.vue'
 import HowItWorks from '../devUser/pages/B_Auth/HowItWorks.vue'
@@ -30,6 +35,7 @@ import Development from '../devAdministrator/pages/Development.vue'
 import Settings from '../devAdministrator/pages/Settings.vue'
 
 import { auth } from '../firebase/firebaseManager.js'
+import { loadCurrentUserProfile } from '../devUser/data/userSession.js'
 
 const routes = [
   // Public marketing site (no guard)
@@ -45,6 +51,26 @@ const routes = [
 
   // User routes (no guard)
   { path: '/user/login', name: 'UserLogin', component: LoginUser },
+
+  // User Routes (gaurded routes restricted to user login access)
+  {
+    path: '/user/group-assign',
+    name: 'UserGroupAssign',
+    component: UserGroupAssign,
+    meta: { requiresUserAuth: true }
+  },
+  {
+    path: '/user/group-registration',
+    name: 'UserGroupRegistration',
+    component: UserGroupRegistration,
+    meta: { requiresUserAuth: true }
+  },
+  {
+    path: '/user/dashboard',
+    name: 'UserGroupDashboard',
+    component: UserGroupDashboard,
+    meta: { requiresUserAuth: true }
+  },
 
   // User registration (no guard)
   { path: '/user/register', name: 'UserRegister', component: UserRegistration },
@@ -77,22 +103,23 @@ const router = createRouter({
   routes,
 })
 
-// ✅ Guard only applies to /admin routes (except /admin/login)
-router.beforeEach((to) => {
-  // Skip guard for public + user routes
-  if (!to.path.startsWith('/admin')) {
-    return true
+// ✅ Guard applies to /admin routes (except /admin/login) AND any route
+// tagged meta.requiresUserAuth (see UserGroupAssign/UserGroupDashboard above)
+router.beforeEach(async (to) => {
+  // --- Admin ---
+  if (to.path.startsWith('/admin') && to.name !== 'AdminLogin') {
+    const user = auth.currentUser
+    if (!user) {
+      return '/admin/login'
+    }
   }
 
-  // Allow direct access to /admin/login
-  if (to.name === 'AdminLogin') {
-    return true
-  }
-
-  // Protect other /admin routes
-  const user = auth.currentUser
-  if (!user) {
-    return { name: 'AdminLogin' }
+  // --- User-facing protected pages ---
+  if (to.meta.requiresUserAuth) {
+    const isValid = await loadCurrentUserProfile()
+    if (!isValid) {
+      return '/user/login'
+    }
   }
 })
 

@@ -1,13 +1,17 @@
 <script setup>
 // ─────────────────────────────────────────────────────────────────────────
-// VISUAL / STRUCTURE ONLY.
-// No API calls, no validation, no auth logic. The refs below exist purely
-// so the page can be clicked through (password visibility, remember me) to
-// preview the UI. Wire this up to real sign-in logic separately.
+// Handles both Email + Password and SSO (Google/Microsoft/Yahoo) sign-in.
+// Flow: authenticate with Firebase (via userMockData.js) -> load the
+// FinBine profile from the backend (via userSession.js, which also
+// updates last_activity in Firestore server-side) -> redirect based on
+// whether the profile has a group yet.
 // ─────────────────────────────────────────────────────────────────────────
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import logo from '../../../assets/SVG/logo.svg'
 import googleLogo from '../../../assets/SVG/svgGoogle.svg'
+import { loginWithEmail, loginWithSSO } from '../../data/userMockData.js'
+import { loadCurrentUserProfile, currentUserProfile } from '../../data/userSession.js'
 import {
   ShieldCheck,
   Users,
@@ -17,11 +21,22 @@ import {
   Eye,
   EyeOff,
   Info,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-vue-next'
+
+const router = useRouter()
 
 const passwordVisible = ref(false)
 const rememberMe = ref(false)
+
+const email = ref('')
+const password = ref('')
+
+// One shared "busy" flag disables every sign-in button at once, so a
+// slow connection can't result in two sign-in attempts firing together.
+const isSubmitting = ref(false)
+const loginError = ref('')
 
 const features = [
   {
@@ -47,13 +62,64 @@ const socialMethods = [
   { id: 'yahoo', name: 'Yahoo' }
 ]
 
-// No-op placeholders — visual only.
 function togglePasswordVisibility() {
   passwordVisible.value = !passwordVisible.value
 }
 
-function handleSignIn() {
-  // Intentionally does nothing yet.
+// After ANY successful Firebase sign-in (Email or SSO), the rest of the
+// flow is identical: load the FinBine profile, then route based on
+// whether a group is already assigned.
+async function afterFirebaseSignIn() {
+  const profileLoaded = await loadCurrentUserProfile()
+
+  if (!profileLoaded) {
+    loginError.value = "We couldn't load your FinBine profile. Please try again."
+    return
+  }
+
+  if (currentUserProfile.value.groupId) {
+    router.push('/user/dashboard')
+  } else {
+    router.push('/user/group-assign')
+  }
+}
+
+async function handleSignIn() {
+  loginError.value = ''
+
+  if (!email.value.trim() || !password.value) {
+    loginError.value = 'Please enter your email and password.'
+    return
+  }
+
+  isSubmitting.value = true
+
+  const result = await loginWithEmail(email.value.trim(), password.value)
+
+  if (!result.success) {
+    isSubmitting.value = false
+    loginError.value = result.message
+    return
+  }
+
+  await afterFirebaseSignIn()
+  isSubmitting.value = false
+}
+
+async function handleSocialSignIn(providerName) {
+  loginError.value = ''
+  isSubmitting.value = true
+
+  const result = await loginWithSSO(providerName)
+
+  if (!result.success) {
+    isSubmitting.value = false
+    loginError.value = result.message
+    return
+  }
+
+  await afterFirebaseSignIn()
+  isSubmitting.value = false
 }
 </script>
 
@@ -117,6 +183,11 @@ function handleSignIn() {
             </p>
           </div>
 
+          <p v-if="loginError" class="login-error">
+            <AlertCircle :size="15" />
+            <span>{{ loginError }}</span>
+          </p>
+
           <p class="section-label">Sign in with</p>
 
           <div class="social-list">
@@ -125,6 +196,8 @@ function handleSignIn() {
               :key="method.id"
               type="button"
               class="social-btn"
+              :disabled="isSubmitting"
+              @click="handleSocialSignIn(method.name)"
             >
               <span class="social-icon">
                 <img v-if="method.id === 'google'" :src="googleLogo" alt="Google" />
@@ -145,14 +218,14 @@ function handleSignIn() {
           <div class="field">
             <div class="input-wrap">
               <Mail :size="16" class="input-icon" />
-              <input type="email" placeholder="Email address" />
+              <input type="email" v-model="email" placeholder="Email address" />
             </div>
           </div>
 
           <div class="field">
             <div class="input-wrap">
               <Lock :size="16" class="input-icon" />
-              <input :type="passwordVisible ? 'text' : 'password'" placeholder="Password" />
+              <input :type="passwordVisible ? 'text' : 'password'" v-model="password" placeholder="Password" />
               <button
                 type="button"
                 class="visibility-toggle"
@@ -169,9 +242,9 @@ function handleSignIn() {
             <a href="#" class="forgot-link">Forgot password?</a>
           </div>
 
-          <button type="button" class="signin-btn" @click="handleSignIn">
+          <button type="button" class="signin-btn" :disabled="isSubmitting" @click="handleSignIn">
             <span class="signin-icon"><Lock :size="16" /></span>
-            Sign In
+            {{ isSubmitting ? 'Signing in...' : 'Sign In' }}
           </button>
 
           <div class="form-footer-row">
@@ -430,6 +503,25 @@ function handleSignIn() {
   margin: 0;
 }
 
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 13px;
+  margin: -8px 0 18px;
+  font-size: 0.8rem;
+  color: #b91c1c;
+  line-height: 1.5;
+}
+
+.login-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .section-label {
   font-size: 0.82rem;
   font-weight: 700;
@@ -465,6 +557,11 @@ function handleSignIn() {
 .social-btn:hover {
   border-color: #cbd5e1;
   background: #f8fafc;
+}
+
+.social-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .social-icon {
@@ -626,6 +723,11 @@ function handleSignIn() {
   background: #14213d;
 }
 
+.signin-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .signin-icon {
   display: flex;
   color: #2dd4bf;
@@ -774,7 +876,6 @@ function handleSignIn() {
 
   .social-chevron {
     display: block;
-    margin-left: auto;
   }
 }
 </style>

@@ -20,12 +20,4 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="AdminAuthentication\Logs\" />
-    <Folder Include="PlatformHealth\Controllers\" />
-    <Folder Include="PlatformHealth\Models\" />
-    <Folder Include="PlatformHealth\Logs\" />
-    <Folder Include="PlatformHealth\Services\" />
-  </ItemGroup>
-
 </Project>

@@ -1,15 +1,19 @@
 <script setup>
-// ─────────────────────────────────────────────────────────────────────────
-// VISUAL / STRUCTURE ONLY.
-// No API calls, no validation, no persistence. The refs below exist purely
-// so the page can be clicked through (step navigation, selecting a sign-in
-// method, checking the terms box) to preview the UI. Wire this up to real
-// registration logic separately.
-// ─────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════
+// USER REGISTRATION PAGE
+//
+// Handles both the desktop single-page layout and the mobile 2-step
+// wizard. Submits to the real backend via userMockData.js — nothing in
+// this file talks to fetch()/the network directly; that's deliberate,
+// see userMockData.js for why.
+// ═════════════════════════════════════════════════════════════════════════
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import logo from '../../../assets/SVG/logo.svg'
 import googleLogo from '../../../assets/SVG/svgGoogle.svg'
 import countriesData from '../../../devAdministrator/data/finbine-countries.json'
+import { registerWithEmail, registerWithSSO } from '../../data/userMockData.js'
+import RegistrationProgressModal from '../../components/Register/RegistrationProgressModal.vue'
 import {
   User,
   IdCard,
@@ -31,18 +35,26 @@ import {
   Search
 } from 'lucide-vue-next'
 
-// Mobile step wizard state (steps 1–4 per the design; only two are built out
-// visually here — Account Info + Sign-in Method — the rest can be added the
-// same way).
+const router = useRouter()
+
+// ─────────────────────────────────────────────────────────────────────────
+// Mobile step wizard state.
+// Desktop shows both "steps" on one page at once (see the template) — this
+// state only actually matters on mobile, where they're shown one at a time.
+// ─────────────────────────────────────────────────────────────────────────
 const mobileStep = ref(1)
-const totalSteps = 4
+const totalSteps = 4 // matches the design's 4-dot progress indicator
 const progressPercent = computed(() => (mobileStep.value / totalSteps) * 100)
 
 function goToStep(step) {
   mobileStep.value = step
 }
 
-// Sign-in method selection (visual state only)
+// ─────────────────────────────────────────────────────────────────────────
+// Sign-in method selection.
+// Only these four are supported anywhere in the app (backend included) —
+// see UserRegistrationController.cs's AllowedProviders list for SSO.
+// ─────────────────────────────────────────────────────────────────────────
 const selectedMethod = ref('email')
 
 const signInMethods = [
@@ -79,6 +91,8 @@ const selectedMethodDetails = computed(() =>
 
 const agreedToTerms = ref(false)
 
+// Static content for the right-hand benefits panel — not user data, so it
+// just lives here rather than coming from anywhere dynamic.
 const benefits = [
   {
     icon: ShieldCheck,
@@ -219,9 +233,189 @@ function handleDocumentClick(event) {
 onMounted(() => document.addEventListener('click', handleDocumentClick))
 onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
 
-// No-op placeholder — visual only.
-function handleCreateAccount() {
-  // Intentionally does nothing yet.
+// ─────────────────────────────────────────────────────────────────────────
+// Form fields
+// ─────────────────────────────────────────────────────────────────────────
+const firstName = ref('')
+const lastName = ref('')
+const displayName = ref('')
+const email = ref('')
+const dateOfBirth = ref('') // yyyy-mm-dd, from the native date input
+
+// Prevents picking a future date of birth via the native date picker.
+// (The real 18+ check still happens separately below — this is just a
+// convenience so the picker itself doesn't offer impossible dates.)
+const maxDobDate = computed(() => new Date().toISOString().split('T')[0])
+
+// Per-field validation messages, keyed by field name. Populated by
+// validateAccountFields()/validateSignInFields() and read directly in
+// the template (e.g. fieldErrors.email) to show inline error text and
+// red borders.
+const fieldErrors = ref({})
+
+// Disables the Create Account button while a real submit is in flight,
+// so a slow connection can't be double-clicked into two registrations.
+const isSubmitting = ref(false)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Registration progress modal (RegistrationProgressModal.vue)
+//
+// modalState drives which screen the modal shows:
+//   'loading'   — cycling reassurance messages while the real request runs
+//   'success'   — registration worked
+//   'duplicate' — backend reported ErrorCode: "AccountAlreadyExists"
+//   'error'     — any other failure
+// ─────────────────────────────────────────────────────────────────────────
+const modalOpen = ref(false)
+const modalState = ref('loading')
+
+// ─────────────────────────────────────────────────────────────────────────
+// Validation
+// ─────────────────────────────────────────────────────────────────────────
+
+// Computes age in whole years from a yyyy-mm-dd string. Returns null if
+// the string doesn't parse to a real date.
+function calculateAge(dobString) {
+  const dob = new Date(dobString)
+  if (isNaN(dob.getTime())) return null
+
+  const today = new Date()
+  let age = today.getFullYear() - dob.getFullYear()
+  const monthDiff = today.getMonth() - dob.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--
+  }
+  return age
+}
+
+// Validates everything shown in Step 1 (Account Information). Used both
+// by the mobile "Continue" button and by the final submit (desktop shows
+// both steps on one page, so submit re-checks these too).
+function validateAccountFields() {
+  const errors = {}
+
+  if (!firstName.value.trim()) errors.firstName = 'First name is required.'
+  if (!lastName.value.trim()) errors.lastName = 'Last name is required.'
+  if (!displayName.value.trim()) errors.displayName = 'Display name is required.'
+
+  if (!email.value.trim()) {
+    errors.email = 'Email address is required.'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) {
+    errors.email = 'Enter a valid email address.'
+  }
+
+  if (!dateOfBirth.value) {
+    errors.dateOfBirth = 'Date of birth is required.'
+  } else {
+    const age = calculateAge(dateOfBirth.value)
+    if (age === null) errors.dateOfBirth = 'Enter a valid date.'
+    else if (age < 18) errors.dateOfBirth = 'You must be 18 years or older to use FinBine.'
+  }
+
+  if (!selectedCountryCode.value) errors.country = 'Please select your country.'
+  if (!selectedCurrencyCode.value) errors.currency = 'Please select your preferred currency.'
+  if (!selectedTimeZone.value) errors.timeZone = 'Please select your time zone.'
+
+  return errors
+}
+
+// Validates Step 2 (Sign-in Method) — currently just the terms checkbox,
+// since the sign-in method itself always has a value (defaults to 'email').
+function validateSignInFields() {
+  const errors = {}
+  if (!agreedToTerms.value) {
+    errors.terms = "You must agree to FinBine's Terms of Service and Privacy Policy."
+  }
+  return errors
+}
+
+// Mobile "Continue" button — only advances to step 2 if step 1 is valid.
+// (On desktop this button is hidden entirely; both steps are already
+// visible, see .continue-btn's display:none outside the mobile media query.)
+function handleContinue() {
+  const errors = validateAccountFields()
+  fieldErrors.value = errors
+
+  if (Object.keys(errors).length === 0) {
+    goToStep(2)
+  }
+}
+
+// Keeps the modal visible for at least this long, so a very fast backend
+// response doesn't flash past before it's readable. Purely a UX nicety —
+// has no effect on how long the real request actually takes.
+function minimumDelay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Main submit handler — validates everything, opens the progress modal,
+// fires the real registration call (Email or SSO depending on what's
+// selected), and switches the modal to success/duplicate/error based on
+// the real result.
+async function handleCreateAccount() {
+  const accountErrors = validateAccountFields()
+  const signInErrors = validateSignInFields()
+  const errors = { ...accountErrors, ...signInErrors }
+  fieldErrors.value = errors
+
+  if (Object.keys(errors).length > 0) {
+    // On mobile, jump back to step 1 if that's where the problem is,
+    // so the person can actually see the field that needs fixing.
+    if (Object.keys(accountErrors).length > 0) {
+      mobileStep.value = 1
+    }
+    return
+  }
+
+  isSubmitting.value = true
+  modalState.value = 'loading'
+  modalOpen.value = true
+
+  const payload = {
+    firstName: firstName.value.trim(),
+    lastName: lastName.value.trim(),
+    displayName: displayName.value.trim(),
+    email: email.value.trim(),
+    dateOfBirth: dateOfBirth.value,
+    country: selectedCountryCode.value,
+    currency: selectedCurrencyCode.value,
+    timezone: selectedTimeZone.value,
+    signInMethod: selectedMethod.value
+  }
+
+  // registerWithEmail/registerWithSSO both return { success, message,
+  // errorCode? } — see userMockData.js for what each one actually does.
+  const [result] = await Promise.all([
+    selectedMethod.value === 'email'
+      ? registerWithEmail(payload)
+      : registerWithSSO(selectedMethodDetails.value.name, payload),
+    minimumDelay(1600)
+  ])
+
+  isSubmitting.value = false
+
+  if (result.success && result.emailSent === false) {
+    // Account genuinely exists, but they have no way to set a password
+    // yet — needs its own state, distinct from a clean success.
+    modalState.value = 'success-email-warning'
+  } else if (result.success) {
+    modalState.value = 'success'
+  } else if (result.errorCode === 'AccountAlreadyExists') {
+    modalState.value = 'duplicate'
+  } else {
+    modalState.value = 'error'
+  }
+}
+
+// "Try Again Now" from the modal's error state — just closes the modal.
+// The form itself is untouched, so the person can fix something and
+// resubmit without retyping anything.
+function handleRetry() {
+  modalOpen.value = false
+}
+
+function goToSignIn() {
+  router.push('/user/login')
 }
 </script>
 
@@ -252,7 +446,7 @@ function handleCreateAccount() {
     <!-- ============================= CARD ============================= -->
     <main class="card-shell">
       <div class="card">
-        <!-- Mobile-only progress bar -->
+        <!-- Mobile-only progress bar (hidden on desktop via media query) -->
         <div class="mobile-progress">
           <div class="progress-track">
             <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
@@ -271,51 +465,56 @@ function handleCreateAccount() {
               <div class="field-row">
                 <div class="field">
                   <label>First Name</label>
-                  <div class="input-wrap">
+                  <div class="input-wrap" :class="{ 'has-error': fieldErrors.firstName }">
                     <User :size="16" class="input-icon" />
-                    <input type="text" placeholder="Enter your first name" />
+                    <input type="text" v-model="firstName" placeholder="Enter your first name" />
                   </div>
+                  <p v-if="fieldErrors.firstName" class="error-text">{{ fieldErrors.firstName }}</p>
                 </div>
                 <div class="field">
                   <label>Last Name</label>
-                  <div class="input-wrap">
+                  <div class="input-wrap" :class="{ 'has-error': fieldErrors.lastName }">
                     <User :size="16" class="input-icon" />
-                    <input type="text" placeholder="Enter your last name" />
+                    <input type="text" v-model="lastName" placeholder="Enter your last name" />
                   </div>
+                  <p v-if="fieldErrors.lastName" class="error-text">{{ fieldErrors.lastName }}</p>
                 </div>
               </div>
 
               <div class="field">
                 <label>Display Name</label>
-                <div class="input-wrap">
+                <div class="input-wrap" :class="{ 'has-error': fieldErrors.displayName }">
                   <IdCard :size="16" class="input-icon" />
-                  <input type="text" placeholder="How should we call you?" />
+                  <input type="text" v-model="displayName" placeholder="How should we call you?" />
                 </div>
-                <p class="hint">This is how your name will appear in FinBine.</p>
+                <p v-if="fieldErrors.displayName" class="error-text">{{ fieldErrors.displayName }}</p>
+                <p v-else class="hint">This is how your name will appear in FinBine.</p>
               </div>
 
               <div class="field-row">
                 <div class="field">
                   <label>Email Address</label>
-                  <div class="input-wrap">
+                  <div class="input-wrap" :class="{ 'has-error': fieldErrors.email }">
                     <Mail :size="16" class="input-icon" />
-                    <input type="email" placeholder="Enter your email address" />
+                    <input type="email" v-model="email" placeholder="Enter your email address" />
                   </div>
+                  <p v-if="fieldErrors.email" class="error-text">{{ fieldErrors.email }}</p>
                 </div>
                 <div class="field">
                   <label>Date of Birth</label>
-                  <div class="input-wrap">
+                  <div class="input-wrap" :class="{ 'has-error': fieldErrors.dateOfBirth }">
                     <Calendar :size="16" class="input-icon" />
-                    <input type="text" placeholder="DD / MM / YYYY" />
+                    <input type="date" v-model="dateOfBirth" :max="maxDobDate" />
                   </div>
-                  <p class="hint">You must be 18 years or older to use FinBine.</p>
+                  <p v-if="fieldErrors.dateOfBirth" class="error-text">{{ fieldErrors.dateOfBirth }}</p>
+                  <p v-else class="hint">You must be 18 years or older to use FinBine.</p>
                 </div>
               </div>
 
               <div class="field-row">
                 <div class="field">
                   <label>Country</label>
-                  <div class="input-wrap select-wrap combo-wrap" @click="toggleCountryDropdown">
+                  <div class="input-wrap select-wrap combo-wrap" :class="{ 'has-error': fieldErrors.country }" @click="toggleCountryDropdown">
                     <Globe :size="16" class="input-icon" />
                     <span class="combo-value" :class="{ placeholder: !selectedCountry }">
                       {{ selectedCountry ? selectedCountry.name : 'Select your country' }}
@@ -346,12 +545,13 @@ function handleCreateAccount() {
                       </ul>
                     </div>
                   </div>
+                  <p v-if="fieldErrors.country" class="error-text">{{ fieldErrors.country }}</p>
                 </div>
                 <div class="field">
                   <label>Time Zone</label>
                   <div
                     class="input-wrap select-wrap combo-wrap"
-                    :class="{ disabled: !selectedCountry }"
+                    :class="{ disabled: !selectedCountry, 'has-error': fieldErrors.timeZone }"
                     @click="selectedCountry && toggleTimeZoneDropdown()"
                   >
                     <Clock :size="16" class="input-icon" />
@@ -384,7 +584,8 @@ function handleCreateAccount() {
                       </ul>
                     </div>
                   </div>
-                  <p v-if="!selectedCountry" class="hint">Select a country first.</p>
+                  <p v-if="fieldErrors.timeZone" class="error-text">{{ fieldErrors.timeZone }}</p>
+                  <p v-else-if="!selectedCountry" class="hint">Select a country first.</p>
                 </div>
               </div>
 
@@ -392,7 +593,7 @@ function handleCreateAccount() {
                 <label>Preferred Currency</label>
                 <div
                   class="input-wrap select-wrap combo-wrap"
-                  :class="{ disabled: !selectedCountry }"
+                  :class="{ disabled: !selectedCountry, 'has-error': fieldErrors.currency }"
                   @click="selectedCountry && toggleCurrencyDropdown()"
                 >
                   <DollarSign :size="16" class="input-icon" />
@@ -425,10 +626,12 @@ function handleCreateAccount() {
                     </ul>
                   </div>
                 </div>
-                <p class="hint">This will be your default currency for financial data.</p>
+                <p v-if="fieldErrors.currency" class="error-text">{{ fieldErrors.currency }}</p>
+                <p v-else class="hint">This will be your default currency for financial data.</p>
               </div>
 
-              <button type="button" class="continue-btn" @click="goToStep(2)">Continue</button>
+              <!-- Mobile-only — hidden on desktop via CSS -->
+              <button type="button" class="continue-btn" @click="handleContinue">Continue</button>
 
               <div class="step-dots">
                 <span
@@ -485,10 +688,17 @@ function handleCreateAccount() {
                 <input type="checkbox" v-model="agreedToTerms" />
                 <span>I agree to FinBine's <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</span>
               </label>
+              <p v-if="fieldErrors.terms" class="error-text terms-error">{{ fieldErrors.terms }}</p>
 
-              <button type="button" class="create-btn" @click="handleCreateAccount">Create Account</button>
+              <!-- Disabled while a real registration request is in flight,
+                   so it can't be double-clicked into two submissions.
+                   Progress/result is shown in RegistrationProgressModal
+                   below, not inline here. -->
+              <button type="button" class="create-btn" :disabled="isSubmitting" @click="handleCreateAccount">
+                Create Account
+              </button>
 
-              <p class="signin-link">Already have an account? <a href="#">Sign in</a></p>
+              <p class="signin-link">Already have an account? <a href="#" @click.prevent="goToSignIn">Sign in</a></p>
             </section>
           </div>
 
@@ -524,6 +734,18 @@ function handleCreateAccount() {
       <p class="footer-secure"><Lock :size="14" /> Your security and privacy are our top priority.</p>
       <p class="footer-copy">© {{ new Date().getFullYear() }} FinBine. All rights reserved.</p>
     </footer>
+
+    <!-- ====================== REGISTRATION PROGRESS MODAL ====================== -->
+    <!-- Covers the whole page and blocks interaction while open, so the
+         person can't spam the Create Account button or wander off mid-
+         submit. Loading/success/duplicate/error copy all lives inside
+         RegistrationProgressModal.vue itself — this page just tells it
+         which state to show. -->
+    <RegistrationProgressModal
+      v-if="modalOpen"
+      :state="modalState"
+      @retry="handleRetry"
+    />
   </div>
 </template>
 
@@ -1025,6 +1247,11 @@ function handleCreateAccount() {
   background: #123f8a;
 }
 
+.create-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .signin-link {
   text-align: center;
   font-size: 0.82rem;
@@ -1040,6 +1267,22 @@ function handleCreateAccount() {
 
 .signin-link a:hover {
   text-decoration: underline;
+}
+
+/* -------------------------- VALIDATION STATES -------------------------- */
+.has-error input,
+.has-error .combo-value {
+  border-color: #dc2626 !important;
+}
+
+.error-text {
+  font-size: 0.76rem;
+  color: #dc2626;
+  margin: 6px 0 0;
+}
+
+.terms-error {
+  margin-top: -12px;
 }
 
 .continue-btn,

@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FinBineBackend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ee16c826955a2beadf4eba3a2ef284afac37f8ed")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ffc63fbbade9f78b659affc404a30263d194dd8a")]
 [assembly: System.Reflection.AssemblyProductAttribute("FinBineBackend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FinBineBackend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
