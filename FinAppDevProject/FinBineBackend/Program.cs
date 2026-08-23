@@ -1,5 +1,7 @@
 using FinBineBackend.AdminAuthentication.Services;
 using FinBineBackend.AdminAuthentication.Logs.Services;
+using FinBineBackend.AdminDatabaseView.Services;
+using FinBineBackend.AdminDatabaseView.Logs.Services;
 using FinBineBackend.BackEnd.Logs.Services;
 using FinBineBackend.BackEnd.Middleware;
 using FinBineBackend.LoggingLogic.LogDbWrite.Data;
@@ -53,6 +55,16 @@ builder.Services.AddScoped<UserFirestoreService>();
 // Orchestrates a full registration: Firebase Auth -> Firestore -> Postgres,
 // with automatic all-or-nothing rollback if any step fails.
 builder.Services.AddScoped<UserRegistrationService>();
+
+// ------------------------------------------------------------
+// Admin Database View (Development > DbUsers page)
+//
+// Merges Firebase Auth + fb_users Firestore + Postgres Users into one
+// row per person, and handles manual add/delete across all 3. Reuses
+// AdminAuthService (token check), UserFirestoreService, and
+// UserDbContext rather than opening its own connections.
+// ------------------------------------------------------------
+builder.Services.AddScoped<AdminDatabaseViewService>();
 
 // ------------------------------------------------------------
 // User Login Authentication
@@ -118,6 +130,7 @@ builder.Services.AddScoped<LoggingSystemLoggingService>();
 builder.Services.AddScoped<UserRegistrationLoggingService>();
 builder.Services.AddScoped<UserLoginLoggingService>();
 builder.Services.AddScoped<UserGroupRegistrationLoggingService>();
+builder.Services.AddScoped<AdminDatabaseViewLoggingService>();
 
 // ------------------------------------------------------------
 // Platform Health

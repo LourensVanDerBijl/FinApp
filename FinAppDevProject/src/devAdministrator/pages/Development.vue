@@ -1,43 +1,71 @@
 <script setup>
-import SectionCard from '../sharedComponents/SectionCard.vue'
-import StatusBadge from '../sharedComponents/StatusBadge.vue'
+import { ref } from 'vue'
+import DevelopmentTopNav from '../components/development/DevelopmentTopNav.vue'
+import DbUsersView from '../components/development/DbUsersView.vue'
+import { Lock } from 'lucide-vue-next'
 
-// Example placeholder data
-const devServices = [
-  { name: 'Feature Flags', status: 'Enabled' },
-  { name: 'Beta Testing', status: 'Active' },
-  { name: 'CI/CD Pipeline', status: 'Running' },
-  { name: 'Error Tracking', status: 'Connected' }
-]
+const activeTab = ref('dbusers')
+
+function handleChange(tab) {
+  activeTab.value = tab
+}
 </script>
 
 <template>
-  <SectionCard>
-    <h3>Development Tools</h3>
-    <div class="dev-list">
-      <div v-for="service in devServices" :key="service.name" class="dev-item">
-        <p class="dev-name">{{ service.name }}</p>
-        <StatusBadge :status="service.status" />
+  <div class="development-page">
+    <div class="page-title-row">
+      <div>
+        <h1>Development</h1>
+        <p class="page-subtitle">A live, front-end view of the underlying databases — inspect, add, and delete records without switching tools.</p>
       </div>
     </div>
-  </SectionCard>
+
+    <DevelopmentTopNav :active-tab="activeTab" @change="handleChange" />
+
+    <DbUsersView v-if="activeTab === 'dbusers'" />
+
+    <div v-else class="placeholder">
+      <Lock size="20" />
+      <p>DbSomething isn't wired up yet.</p>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.dev-list {
+.development-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  background: #F8FAFC;
 }
-.dev-item {
+
+.page-title-row {
+  padding: 10px 16px 8px;
+}
+
+.page-title-row h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 0.68rem;
+  color: #64748B;
+  margin: 2px 0 0 0;
+}
+
+.placeholder {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  background: #f9fafb;
-  padding: 8px 12px;
-  border-radius: 6px;
-}
-.dev-name {
-  font-weight: 500;
+  justify-content: center;
+  gap: 8px;
+  color: #94A3B8;
+  font-size: 0.75rem;
 }
 </style>

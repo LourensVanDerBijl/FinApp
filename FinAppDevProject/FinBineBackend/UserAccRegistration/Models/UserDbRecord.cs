@@ -21,10 +21,14 @@
         // "Free" or "Premium" for now.
         public string AccountType { get; set; } = string.Empty;
 
-        // Null until the user creates or joins a group. Points to a row
-        // in a future Groups table — the group's name itself isn't
-        // duplicated here, only its ID.
+        // Null while GroupStatus is None or Terminated. Points to a row
+        // in the Groups table — the group's name itself isn't
+        // duplicated here, only its ID. Kept in sync with the Firestore
+        // fb_users document's group_id — see GroupMembershipStatus for
+        // what each status means.
         public string? GroupId { get; set; } = null;
+
+        public string GroupStatus { get; set; } = GroupMembershipStatus.None;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

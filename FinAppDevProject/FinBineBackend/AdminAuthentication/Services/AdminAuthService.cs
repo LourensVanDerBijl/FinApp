@@ -22,7 +22,9 @@ namespace FinBineBackend.AdminAuthentication.Services
 
             // Load the credentials file once, using the newer,
             // non-deprecated CredentialFactory approach.
+            Console.WriteLine("[AdminAuthService] Loading credentials from " + CredentialsPath);
             var credential = CredentialFactory.FromFile(CredentialsPath, "service_account");
+            Console.WriteLine("[AdminAuthService] Credentials loaded OK");
 
             // Initialize Firebase only once
             if (FirebaseApp.DefaultInstance == null)
@@ -36,12 +38,14 @@ namespace FinBineBackend.AdminAuthentication.Services
             // Firestore needs to know which Google Cloud project to talk to.
             // We read that project ID out of the same credentials file.
             var projectId = ReadProjectIdFromCredentialsFile(CredentialsPath);
+            Console.WriteLine("[AdminAuthService] Project ID: " + projectId);
 
             _firestoreDb = new FirestoreDbBuilder
             {
                 ProjectId = projectId,
                 GoogleCredential = credential
             }.Build();
+            Console.WriteLine("[AdminAuthService] FirestoreDb built OK");
         }
 
         public async Task<AdminLoginResponse> VerifyTokenAsync(string token, string ipAddress)
@@ -49,8 +53,10 @@ namespace FinBineBackend.AdminAuthentication.Services
             try
             {
                 // Step 1: Confirm the login token is genuine and not expired.
+                Console.WriteLine("[AdminAuthService] Verifying Firebase ID token...");
                 FirebaseToken decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(token);
                 string uid = decodedToken.Uid;
+                Console.WriteLine("[AdminAuthService] Token verified OK, uid=" + uid);
 
                 // Step 2: Confirm this person actually has a document in
                 // fb_admin_users. A valid Firebase login on its own is NOT
@@ -99,6 +105,8 @@ namespace FinBineBackend.AdminAuthentication.Services
                     _authLogger.LogAuthErrorOther(ex.AuthErrorCode?.ToString() ?? "Unknown", ipAddress);
                 }
 
+                Console.WriteLine("[AdminAuthService] FirebaseAuthException: " + ex);
+
                 return new AdminLoginResponse
                 {
                     Success = false,
@@ -108,6 +116,8 @@ namespace FinBineBackend.AdminAuthentication.Services
             catch (Exception ex)
             {
                 _authLogger.LogSystemError(ex.Message);
+
+                Console.WriteLine("[AdminAuthService] Unexpected exception: " + ex);
 
                 return new AdminLoginResponse
                 {
@@ -123,12 +133,15 @@ namespace FinBineBackend.AdminAuthentication.Services
         // is NOT a registered admin, even if their Firebase login is valid.
         private async Task<AdminAccount?> FindAdminAccountByUidAsync(string uid)
         {
+            Console.WriteLine("[AdminAuthService] Querying fb_admin_users for uid=" + uid);
+
             Query query = _firestoreDb
                 .Collection(AdminCollectionName)
                 .WhereEqualTo("firebase_uid", uid)
                 .Limit(1);
 
             QuerySnapshot snapshot = await query.GetSnapshotAsync();
+            Console.WriteLine("[AdminAuthService] Query returned " + snapshot.Count + " docs");
 
             if (snapshot.Count == 0)
             {

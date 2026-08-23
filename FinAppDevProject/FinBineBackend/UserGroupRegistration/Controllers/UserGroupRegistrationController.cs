@@ -27,5 +27,18 @@ namespace FinBineBackend.UserGroupRegistration.Controllers
 
             return result.Success ? Ok(result) : BadRequest(result);
         }
+
+        [HttpPost("join")]
+        public async Task<IActionResult> JoinGroup([FromBody] JoinGroupRequest request)
+        {
+            if (string.IsNullOrEmpty(request.Token))
+                return BadRequest(new JoinGroupResponse { Success = false, Message = "Token is required." });
+
+            string ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            var result = await _registrationService.RequestToJoinGroupAsync(request, ipAddress);
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
     }
 }

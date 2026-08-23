@@ -92,6 +92,32 @@ namespace FinBineBackend.UserAccRegistration.Services
             return snapshot.Documents[0].ConvertTo<FirestoreUserAccount>();
         }
 
+        // Used by the admin Database View page — returns every
+        // fb_users document, unfiltered. Not used anywhere in the
+        // registration/login flow itself, so a large collection here
+        // has no effect on those paths.
+        public async Task<List<FirestoreUserAccount>> GetAllUsersAsync()
+        {
+            QuerySnapshot snapshot = await _firestoreDb.Collection(UsersCollectionName).GetSnapshotAsync();
+            return snapshot.Documents.Select(doc => doc.ConvertTo<FirestoreUserAccount>()).ToList();
+        }
+
+        // Also for the Database View page — looks up one document
+        // directly by its fb_user_###### ID, e.g. to find the
+        // firebase_uid to delete when only the userId is known.
+        public async Task<FirestoreUserAccount?> GetUserByIdAsync(string userId)
+        {
+            DocumentReference docRef = _firestoreDb.Collection(UsersCollectionName).Document(userId);
+            DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
+
+            if (!snapshot.Exists)
+            {
+                return null;
+            }
+
+            return snapshot.ConvertTo<FirestoreUserAccount>();
+        }
+
         private static string ReadProjectIdFromCredentialsFile(string credentialsPath)
         {
             using var stream = File.OpenRead(credentialsPath);

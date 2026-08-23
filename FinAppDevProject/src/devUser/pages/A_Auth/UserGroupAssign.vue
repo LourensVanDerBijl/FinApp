@@ -11,15 +11,17 @@
 //   - Tab switching (mobile), option selection, Group ID input, Logout.
 //   - Both "Create Premium/Free Group" tiers route to
 //     UserGroupRegistration.vue (?type=premium|free) to finish setup.
-// NOT wired to a real backend yet (no join-group API exists):
-//   - "Request to Join" shows an inline "not available yet" message
-//     instead of pretending to submit.
+//   - "Request to Join" submits to POST /api/user/group-registration/join.
+//     Success shows the PendingApprovalModal — also shown immediately on
+//     mount if the user arrived here already Pending from a previous
+//     session (see currentUserProfile.groupStatus).
 // ─────────────────────────────────────────────────────────────────────────
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { signOut } from 'firebase/auth'
 import { auth } from '../../../firebase/firebaseManager.js'
 import { currentUserProfile, clearUserProfile } from '../../data/userSession.js'
+import { joinGroup } from '../../data/userMockData.js'
 import { HelpCircle } from 'lucide-vue-next'
 
 import GroupAssignSidebar from '../../components/A_Auth/UserGroupAssign/GroupAssignSidebar.vue'
@@ -29,6 +31,7 @@ import GroupAssignTabs from '../../components/A_Auth/UserGroupAssign/GroupAssign
 import CreateGroupCard from '../../components/A_Auth/UserGroupAssign/CreateGroupCard.vue'
 import JoinGroupCard from '../../components/A_Auth/UserGroupAssign/JoinGroupCard.vue'
 import OrDivider from '../../components/A_Auth/UserGroupAssign/OrDivider.vue'
+import PendingApprovalModal from '../../components/A_Auth/UserGroupAssign/PendingApprovalModal.vue'
 
 const router = useRouter()
 
@@ -49,6 +52,13 @@ async function handleLogout() {
 const activeTab = ref('create') // 'create' | 'join'
 const groupIdInput = ref('')
 const actionMessage = ref('')
+const isSubmittingJoin = ref(false)
+
+// Shown whenever the profile's groupStatus is Pending — true on first
+// render if the user arrived here already pending (e.g. logged out and
+// back in while waiting), and set true again after a fresh submit.
+const showPendingModal = ref(currentUserProfile.value?.groupStatus === 'Pending')
+const pendingGroupName = computed(() => currentUserProfile.value?.groupName || '')
 
 // Called directly by CreateGroupCard's tier buttons — picking a tier IS
 // the action, so this routes straight to the Group Registration page,
@@ -57,14 +67,60 @@ function handleCreateGroup(tier) {
   router.push({ name: 'UserGroupRegistration', query: { type: tier } })
 }
 
-function handleRequestJoin() {
-  if (groupIdInput.value.trim().length !== 8) return
-  actionMessage.value = "Joining a group isn't available yet — check back soon."
+async function handleRequestJoin() {
+  if (!groupIdInput.value.trim() || isSubmittingJoin.value) return
+
+  isSubmittingJoin.value = true
+  actionMessage.value = ''
+
+  const result = await joinGroup(groupIdInput.value.trim())
+
+  isSubmittingJoin.value = false
+
+  if (!result.success) {
+    actionMessage.value = result.message
+    return
+  }
+
+  // Reflect the new Pending state locally so the modal's group name is
+  // right and a page refresh (or next login) already sees it too —
+  // login itself is what re-fetches the authoritative copy.
+  currentUserProfile.value = {
+    ...currentUserProfile.value,
+    groupId: result.groupId,
+    groupName: result.groupName,
+    groupStatus: result.groupStatus
+  }
+
+  groupIdInput.value = ''
+  showPendingModal.value = true
+}
+
+// "Let's wait for the owner" — just closes the modal. The user stays on
+// this page; nothing else to do until they're approved.
+function handleWaitForOwner() {
+  showPendingModal.value = false
+}
+
+// "Join a different group" — closes the modal and drops them on the
+// Join tab with the input ready. Submitting from here is what actually
+// abandons the current pending request (see JoinableFromStatuses on the
+// backend) — closing the modal alone does not.
+function handleJoinDifferentGroup() {
+  showPendingModal.value = false
+  activeTab.value = 'join'
 }
 </script>
 
 <template>
   <div class="assign-page">
+    <PendingApprovalModal
+      v-if="showPendingModal"
+      :group-name="pendingGroupName"
+      @wait="handleWaitForOwner"
+      @join-different="handleJoinDifferentGroup"
+    />
+
     <div class="page-shell">
       <GroupAssignSidebar />
 
@@ -91,6 +147,7 @@ function handleRequestJoin() {
           <JoinGroupCard
             v-model:group-id="groupIdInput"
             :is-hidden-mobile="activeTab !== 'join'"
+            :is-submitting="isSubmittingJoin"
             @submit="handleRequestJoin"
           />
         </div>

@@ -84,7 +84,10 @@ namespace FinBineBackend.UserLoginAuthentication.Services
                 DisplayName = account.DisplayName,
                 AccountType = account.AccountType,
                 GroupId = account.GroupId,
-                GroupName = account.GroupName
+                GroupName = account.GroupName,
+                GroupStatus = string.IsNullOrWhiteSpace(account.GroupStatus)
+                    ? FinBineBackend.UserAccRegistration.Models.GroupMembershipStatus.None
+                    : account.GroupStatus
             };
         }
     }

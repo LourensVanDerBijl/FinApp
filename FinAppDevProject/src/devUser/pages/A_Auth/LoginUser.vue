@@ -4,7 +4,7 @@
 // Flow: authenticate with Firebase (via userMockData.js) -> load the
 // FinBine profile from the backend (via userSession.js, which also
 // updates last_activity in Firestore server-side) -> redirect based on
-// whether the profile has a group yet.
+// groupStatus (only Active goes straight to the dashboard).
 // ─────────────────────────────────────────────────────────────────────────
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -77,7 +77,11 @@ async function afterFirebaseSignIn() {
     return
   }
 
-  if (currentUserProfile.value.groupId) {
+  // Only a confirmed member goes to the dashboard. None, Pending,
+  // Suspended, and Terminated all land on group-assign — that page
+  // itself decides what to show (create/join cards, or the pending
+  // modal for Pending) based on groupStatus.
+  if (currentUserProfile.value.groupStatus === 'Active') {
     router.push('/user/dashboard')
   } else {
     router.push('/user/group-assign')

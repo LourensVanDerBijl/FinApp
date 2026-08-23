@@ -44,6 +44,10 @@ namespace FinBineBackend.UserAccRegistration.Data
                 entity.Property(u => u.GroupId)
                     .HasMaxLength(20);
 
+                entity.Property(u => u.GroupStatus)
+                    .IsRequired()
+                    .HasMaxLength(20);
+
                 entity.Property(u => u.CreatedAt)
                     .IsRequired();
             });

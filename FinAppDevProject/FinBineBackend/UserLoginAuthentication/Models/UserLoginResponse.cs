@@ -9,9 +9,12 @@
         public string? DisplayName { get; set; }
         public string? AccountType { get; set; }
 
-        // Both null means "no group yet" — the frontend uses this to
-        // decide whether to redirect to a create/join-a-group page.
+        // GroupId/GroupName are null only while GroupStatus is None or
+        // Terminated. The frontend now routes on GroupStatus (not just
+        // whether GroupId is null) — see GroupMembershipStatus for what
+        // each value means.
         public string? GroupId { get; set; }
         public string? GroupName { get; set; }
+        public string? GroupStatus { get; set; }
     }
 }

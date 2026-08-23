@@ -14,24 +14,32 @@ namespace FinBineBackend.UserLoginAuthentication.Services
 
         public UserFirestoreLoginService()
         {
+            Console.WriteLine("[UserFirestoreLoginService] Loading credentials from " + CredentialsPath);
             var credential = CredentialFactory.FromFile(CredentialsPath, "service_account");
+            Console.WriteLine("[UserFirestoreLoginService] Credentials loaded OK");
+
             var projectId = ReadProjectIdFromCredentialsFile(CredentialsPath);
+            Console.WriteLine("[UserFirestoreLoginService] Project ID: " + projectId);
 
             _firestoreDb = new FirestoreDbBuilder
             {
                 ProjectId = projectId,
                 GoogleCredential = credential
             }.Build();
+            Console.WriteLine("[UserFirestoreLoginService] FirestoreDb built OK");
         }
 
         public async Task<FirestoreUserAccount?> FindUserByFirebaseUidAsync(string uid)
         {
+            Console.WriteLine("[UserFirestoreLoginService] Querying fb_users for uid=" + uid);
+
             Query query = _firestoreDb
                 .Collection(UsersCollectionName)
                 .WhereEqualTo("firebase_uid", uid)
                 .Limit(1);
 
             QuerySnapshot snapshot = await query.GetSnapshotAsync();
+            Console.WriteLine("[UserFirestoreLoginService] Query returned " + snapshot.Count + " docs");
             if (snapshot.Count == 0) return null;
 
             return snapshot.Documents[0].ConvertTo<FirestoreUserAccount>();

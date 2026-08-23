@@ -4,6 +4,8 @@ using FirebaseAdmin.Auth;
 using FinBineBackend.UserGroupRegistration.Models;
 using FinBineBackend.UserGroupRegistration.Data;
 using FinBineBackend.UserGroupRegistration.Logs.Services;
+using FinBineBackend.UserAccRegistration.Data;
+using FinBineBackend.UserAccRegistration.Models;
 
 namespace FinBineBackend.UserGroupRegistration.Services
 {
@@ -14,24 +16,23 @@ namespace FinBineBackend.UserGroupRegistration.Services
 
         private readonly GroupFirestoreService _groupFirestoreService;
         private readonly GroupDbContext _groupDb;
+        private readonly UserDbContext _userDb;
         private readonly UserGroupRegistrationLoggingService _regLogger;
 
         public UserGroupRegistrationService(
             GroupFirestoreService groupFirestoreService,
             GroupDbContext groupDb,
+            UserDbContext userDb,
             UserGroupRegistrationLoggingService regLogger)
         {
             _groupFirestoreService = groupFirestoreService;
             _groupDb = groupDb;
+            _userDb = userDb;
             _regLogger = regLogger;
         }
 
         public async Task<CreateGroupResponse> CreateGroupAsync(CreateGroupRequest request, string ipAddress)
         {
-            // Step 1 — the token must check out. This is the "is the
-            // login still legit" guard the frontend route guard alone
-            // can't provide — same verification UserLoginAuthService
-            // does on every protected page load.
             FirebaseToken decodedToken;
             try
             {
@@ -43,9 +44,6 @@ namespace FinBineBackend.UserGroupRegistration.Services
                 {
                     _regLogger.LogTokenMismatch(ipAddress);
                 }
-                // Expired/revoked tokens are a normal, everyday
-                // occurrence (sessions naturally time out) —
-                // deliberately not logged, same as UserLoginAuthService.
 
                 return new CreateGroupResponse
                 {
@@ -54,8 +52,6 @@ namespace FinBineBackend.UserGroupRegistration.Services
                 };
             }
 
-            // Step 2 — server-side validation. Never trust the frontend
-            // alone, even though it already enforces the 20-char limit.
             string groupName = request.GroupName?.Trim() ?? string.Empty;
             string requestedType = request.GroupType?.Trim() ?? string.Empty;
 
@@ -81,13 +77,10 @@ namespace FinBineBackend.UserGroupRegistration.Services
                 return new CreateGroupResponse { Success = false, Message = "Select a valid group type." };
             }
 
-            // Normalize casing regardless of exactly what the frontend sent.
             string groupType = string.Equals(requestedType, "Premium", StringComparison.OrdinalIgnoreCase)
                 ? "Premium"
                 : "Free";
 
-            // Step 3 — the creator must have a real FinBine profile, and
-            // must not already belong to a group.
             var owner = await _groupFirestoreService.FindOwnerByFirebaseUidAsync(decodedToken.Uid);
             if (owner == null)
             {
@@ -105,14 +98,10 @@ namespace FinBineBackend.UserGroupRegistration.Services
                 return new CreateGroupResponse { Success = false, Message = "You're already part of a group." };
             }
 
-            // Step 4 — create the group across all three systems:
-            // fb_groups -> fb_users (owner assignment) -> Postgres
-            // anchor row. All-or-nothing: if any step fails, every step
-            // that already succeeded is undone, in reverse order — same
-            // pattern as UserRegistrationService's Firebase Auth ->
-            // Firestore -> Postgres flow. This is what makes sure a
-            // partial failure never leaves the owner's fb_users doc
-            // pointing at a group that doesn't fully exist.
+            // Captured before any writes happen, so rollback can restore
+            // exactly what the owner had before — not a hardcoded guess.
+            string previousAccountType = owner.AccountType;
+
             var rollbackActions = new List<(string Source, Func<Task> Action)>();
             string? groupId = null;
             string failedAtSource = "Firestore";
@@ -120,7 +109,9 @@ namespace FinBineBackend.UserGroupRegistration.Services
             try
             {
                 failedAtSource = "Firestore (fb_groups)";
+                Console.WriteLine("[GroupRegistration] Generating group ID...");
                 groupId = await _groupFirestoreService.GenerateNextGroupIdAsync();
+                Console.WriteLine("[GroupRegistration] Group ID: " + groupId);
 
                 string nowIso = DateTime.UtcNow.ToString("o");
 
@@ -140,18 +131,28 @@ namespace FinBineBackend.UserGroupRegistration.Services
                     LastActivityAt = nowIso
                 };
 
+                Console.WriteLine("[GroupRegistration] Creating fb_groups document...");
                 await _groupFirestoreService.CreateGroupDocumentAsync(groupId, groupAccount);
+                Console.WriteLine("[GroupRegistration] fb_groups document created OK");
                 rollbackActions.Add(("Firestore (fb_groups)", async () => await _groupFirestoreService.DeleteGroupDocumentAsync(groupId)));
 
                 failedAtSource = "Firestore (fb_users)";
-                await _groupFirestoreService.AssignOwnerToGroupAsync(owner.UserId, groupId, groupName);
-                rollbackActions.Add(("Firestore (fb_users)", async () => await _groupFirestoreService.RevertOwnerGroupAssignmentAsync(owner.UserId)));
+                Console.WriteLine("[GroupRegistration] Assigning owner in fb_users (account_type -> " + groupType + ")...");
+                await _groupFirestoreService.AssignOwnerToGroupAsync(owner.UserId, groupId, groupName, groupType);
+                Console.WriteLine("[GroupRegistration] fb_users owner assignment OK");
+                rollbackActions.Add(("Firestore (fb_users)", async () => await _groupFirestoreService.RevertOwnerGroupAssignmentAsync(owner.UserId, previousAccountType)));
 
-                failedAtSource = "PostgreSQL";
-                await SavePostgresRecordAsync(groupId, owner.UserId, groupType);
+                failedAtSource = "PostgreSQL (Groups)";
+                Console.WriteLine("[GroupRegistration] Saving Postgres Groups row...");
+                await SavePostgresGroupRecordAsync(groupId, owner.UserId, groupType);
+                Console.WriteLine("[GroupRegistration] Postgres Groups row saved OK");
+                rollbackActions.Add(("PostgreSQL (Groups)", async () => await DeletePostgresGroupRecordAsync(groupId)));
 
-                // All three succeeded. Deliberately not logged — only
-                // problems get logged here, not every clean group creation.
+                failedAtSource = "PostgreSQL (Users)";
+                Console.WriteLine("[GroupRegistration] Updating Postgres Users (GroupId + AccountType -> " + groupType + ")...");
+                await UpdatePostgresUserGroupAsync(owner.UserId, groupId, groupType);
+                Console.WriteLine("[GroupRegistration] Postgres Users row updated OK");
+
                 return new CreateGroupResponse
                 {
                     Success = true,
@@ -162,6 +163,11 @@ namespace FinBineBackend.UserGroupRegistration.Services
             }
             catch (Exception ex)
             {
+                Console.WriteLine("========== GROUP CREATION FAILED ==========");
+                Console.WriteLine("Failed at: " + failedAtSource);
+                Console.WriteLine(ex.ToString());
+                Console.WriteLine("=============================================");
+
                 _regLogger.LogRollbackTriggered(failedAtSource, owner.UserId, groupId, ex.Message);
                 await RollbackAsync(rollbackActions, owner.UserId, groupId);
 
@@ -173,7 +179,156 @@ namespace FinBineBackend.UserGroupRegistration.Services
             }
         }
 
-        private async Task SavePostgresRecordAsync(string groupId, string ownerUserId, string groupType)
+        // Statuses a user may request to join FROM. Only Active is
+        // excluded — you can't submit a new request while already a
+        // confirmed member somewhere (that requires leaving the group
+        // first, not built yet). Pending and Suspended are both
+        // allowed: submitting a new request abandons whatever the old
+        // one pointed at — a stale pending request is simply replaced,
+        // and a suspended user's old group owner loses the ability to
+        // reinstate them once this succeeds. Same overwrite, same
+        // SubmitJoinRequestAsync call either way.
+        private static readonly string[] JoinableFromStatuses =
+        {
+            GroupMembershipStatus.None,
+            GroupMembershipStatus.Pending,
+            GroupMembershipStatus.Suspended,
+            GroupMembershipStatus.Terminated
+        };
+
+        public async Task<JoinGroupResponse> RequestToJoinGroupAsync(JoinGroupRequest request, string ipAddress)
+        {
+            FirebaseToken decodedToken;
+            try
+            {
+                decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(request.Token);
+            }
+            catch (FirebaseAuthException ex)
+            {
+                if (ex.AuthErrorCode == AuthErrorCode.InvalidIdToken)
+                {
+                    _regLogger.LogTokenMismatch(ipAddress);
+                }
+
+                return new JoinGroupResponse
+                {
+                    Success = false,
+                    Message = "Your session could not be verified. Please sign in again."
+                };
+            }
+
+            string targetGroupId = request.GroupId?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(targetGroupId))
+            {
+                _regLogger.LogRegistrationRejected("Validation", decodedToken.Uid, "Missing group ID.");
+                return new JoinGroupResponse { Success = false, Message = "Enter a Group ID." };
+            }
+
+            // Reused from CreateGroupAsync — the name predates this call
+            // site, but it's just "find the fb_users doc for this
+            // Firebase UID", which applies to a requester exactly the
+            // same as it does an owner-to-be.
+            var requester = await _groupFirestoreService.FindOwnerByFirebaseUidAsync(decodedToken.Uid);
+            if (requester == null)
+            {
+                _regLogger.LogRegistrationRejected("Firestore", decodedToken.Uid, "No matching fb_users profile found.");
+                return new JoinGroupResponse
+                {
+                    Success = false,
+                    Message = "We couldn't find a FinBine profile for this account."
+                };
+            }
+
+            string requesterStatus = string.IsNullOrWhiteSpace(requester.GroupStatus)
+                ? GroupMembershipStatus.None
+                : requester.GroupStatus;
+
+            if (!JoinableFromStatuses.Contains(requesterStatus, StringComparer.OrdinalIgnoreCase))
+            {
+                _regLogger.LogRegistrationRejected("Validation", requester.UserId, $"Cannot request to join while GroupStatus is {requesterStatus}.");
+                return new JoinGroupResponse
+                {
+                    Success = false,
+                    Message = "You're already part of a group."
+                };
+            }
+
+            var targetGroup = await _groupFirestoreService.FindGroupByIdAsync(targetGroupId);
+            if (targetGroup == null)
+            {
+                _regLogger.LogRegistrationRejected("Validation", requester.UserId, $"Group '{targetGroupId}' not found.");
+                return new JoinGroupResponse { Success = false, Message = "Group not found. Check the Group ID and try again." };
+            }
+
+            if (!string.Equals(targetGroup.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                _regLogger.LogRegistrationRejected("Validation", requester.UserId, $"Group '{targetGroupId}' is not active.");
+                return new JoinGroupResponse { Success = false, Message = "This group can't accept new members right now." };
+            }
+
+            // Captured before any writes happen, so rollback can restore
+            // exactly what the requester had before — same reasoning as
+            // previousAccountType in CreateGroupAsync. In the common
+            // case this is null/null/None; for a Suspended user
+            // switching groups it's their old group's id/name/Suspended.
+            string? previousGroupId = requester.GroupId;
+            string? previousGroupName = requester.GroupName;
+            string previousGroupStatus = requesterStatus;
+
+            var rollbackActions = new List<(string Source, Func<Task> Action)>();
+            string failedAtSource = "Firestore (fb_users)";
+
+            try
+            {
+                await _groupFirestoreService.SubmitJoinRequestAsync(requester.UserId, targetGroupId, targetGroup.GroupName);
+                rollbackActions.Add(("Firestore (fb_users)", async () =>
+                    await _groupFirestoreService.RevertJoinRequestAsync(requester.UserId, previousGroupId, previousGroupName, previousGroupStatus)));
+
+                failedAtSource = "PostgreSQL (Users)";
+                await UpdatePostgresUserJoinRequestAsync(requester.UserId, targetGroupId);
+
+                return new JoinGroupResponse
+                {
+                    Success = true,
+                    Message = "Your request to join has been sent to the group owner.",
+                    GroupId = targetGroupId,
+                    GroupName = targetGroup.GroupName,
+                    GroupStatus = GroupMembershipStatus.Pending
+                };
+            }
+            catch (Exception ex)
+            {
+                _regLogger.LogRollbackTriggered(failedAtSource, requester.UserId, targetGroupId, ex.Message);
+                await RollbackAsync(rollbackActions, requester.UserId, targetGroupId);
+
+                return new JoinGroupResponse
+                {
+                    Success = false,
+                    Message = "We couldn't submit your request. Please try again."
+                };
+            }
+        }
+
+        // Stamps the requester's Postgres Users row with the target
+        // GroupId and moves GroupStatus to Pending. Deliberately does
+        // NOT touch AccountType — unlike group creation, membership
+        // isn't confirmed yet, so the account tier doesn't change until
+        // an owner approves (not built yet).
+        private async Task UpdatePostgresUserJoinRequestAsync(string userId, string groupId)
+        {
+            var userRecord = await _userDb.Users.FindAsync(userId);
+            if (userRecord == null)
+            {
+                throw new InvalidOperationException($"No Postgres Users row found for UserId '{userId}'.");
+            }
+
+            userRecord.GroupId = groupId;
+            userRecord.GroupStatus = GroupMembershipStatus.Pending;
+            await _userDb.SaveChangesAsync();
+        }
+
+        private async Task SavePostgresGroupRecordAsync(string groupId, string ownerUserId, string groupType)
         {
             var groupDbRecord = new GroupDbRecord
             {
@@ -186,10 +341,33 @@ namespace FinBineBackend.UserGroupRegistration.Services
             await _groupDb.SaveChangesAsync();
         }
 
-        // Undoes whatever already succeeded, most recent first. If a
-        // rollback action itself fails, that's logged as Critical — it
-        // means a human needs to manually clean up an orphaned record,
-        // same convention as UserRegistrationService.RollbackAsync.
+        private async Task DeletePostgresGroupRecordAsync(string groupId)
+        {
+            var record = await _groupDb.Groups.FindAsync(groupId);
+            if (record != null)
+            {
+                _groupDb.Groups.Remove(record);
+                await _groupDb.SaveChangesAsync();
+            }
+        }
+
+        // Stamps the owner's Postgres Users row with the new GroupId AND
+        // upgrades AccountType to match the group's type — mirrors what
+        // AssignOwnerToGroupAsync does on the Firestore side. Membership
+        // in a Premium group always means a Premium account.
+        private async Task UpdatePostgresUserGroupAsync(string userId, string groupId, string groupType)
+        {
+            var userRecord = await _userDb.Users.FindAsync(userId);
+            if (userRecord == null)
+            {
+                throw new InvalidOperationException($"No Postgres Users row found for UserId '{userId}'.");
+            }
+
+            userRecord.GroupId = groupId;
+            userRecord.AccountType = groupType;
+            await _userDb.SaveChangesAsync();
+        }
+
         private async Task RollbackAsync(List<(string Source, Func<Task> Action)> rollbackActions, string ownerUserId, string? groupId)
         {
             for (int i = rollbackActions.Count - 1; i >= 0; i--)

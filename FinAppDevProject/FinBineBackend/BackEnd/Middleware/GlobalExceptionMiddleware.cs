@@ -27,8 +27,9 @@ namespace FinBineBackend.BackEnd.Middleware
             }
             catch (Exception ex)
             {
-                // Something broke. Log it using the method that already
-                // existed but was never being called.
+                Console.WriteLine("========== UNHANDLED EXCEPTION ==========");
+                Console.WriteLine(ex.ToString());   // <-- ADD THIS. Full type, message, and stack trace, right now.
+                Console.WriteLine("==========================================");
                 backEndLogger.LogUnhandledException(ex);
 
                 context.Response.ContentType = "application/json";

@@ -4,12 +4,13 @@ import { UserPlus, Hash, Info, Check, Send } from 'lucide-vue-next'
 
 const props = defineProps({
   groupId: { type: String, required: true },
-  isHiddenMobile: { type: Boolean, default: false }
+  isHiddenMobile: { type: Boolean, default: false },
+  isSubmitting: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:groupId', 'submit'])
 
-const canRequestJoin = computed(() => props.groupId.trim().length === 8)
+const canRequestJoin = computed(() => props.groupId.trim().length > 0 && !props.isSubmitting)
 
 function handleInput(event) {
   emit('update:groupId', event.target.value)
@@ -29,8 +30,8 @@ function handleInput(event) {
         type="text"
         :value="groupId"
         @input="handleInput"
-        maxlength="8"
-        placeholder="Enter the 8-character Group ID"
+        maxlength="20"
+        placeholder="e.g. fb_group_000006"
       />
     </div>
 
@@ -48,7 +49,7 @@ function handleInput(event) {
 
     <button type="button" class="cta-btn blue" :disabled="!canRequestJoin" @click="emit('submit')">
       <Send :size="13" />
-      Request to Join
+      {{ isSubmitting ? 'Sending request…' : 'Request to Join' }}
     </button>
   </section>
 </template>

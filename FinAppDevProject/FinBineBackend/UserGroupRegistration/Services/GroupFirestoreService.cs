@@ -94,31 +94,79 @@ namespace FinBineBackend.UserGroupRegistration.Services
         }
 
         // Marks the creator as the owner of their new group on their
-        // own fb_users document. This is the "user table needs to be
-        // updated as well" step — mirrors the "both null means no
-        // group yet" contract already documented on
-        // FirestoreUserAccount.GroupId/GroupName.
-        public async Task AssignOwnerToGroupAsync(string ownerUserId, string groupId, string groupName)
+        // own fb_users document, and upgrades their account_type to
+        // match the group's type — group membership always determines
+        // account tier.
+        public async Task AssignOwnerToGroupAsync(string ownerUserId, string groupId, string groupName, string groupType)
         {
             DocumentReference docRef = _firestoreDb.Collection(UsersCollectionName).Document(ownerUserId);
             await docRef.UpdateAsync(new Dictionary<string, object>
             {
                 { "group_id", groupId },
                 { "group_name", groupName },
-                { "is_owner", true }
+                { "is_owner", true },
+                { "account_type", groupType }
             });
         }
 
         // Rollback-only — undoes AssignOwnerToGroupAsync if a later
-        // step fails after it already ran.
-        public async Task RevertOwnerGroupAssignmentAsync(string ownerUserId)
+        // step fails after it already ran. previousAccountType restores
+        // whatever account_type the owner had before group creation
+        // started.
+        public async Task RevertOwnerGroupAssignmentAsync(string ownerUserId, string previousAccountType)
         {
             DocumentReference docRef = _firestoreDb.Collection(UsersCollectionName).Document(ownerUserId);
             await docRef.UpdateAsync(new Dictionary<string, object>
             {
                 { "group_id", null! },
                 { "group_name", null! },
-                { "is_owner", false }
+                { "is_owner", false },
+                { "account_type", previousAccountType }
+            });
+        }
+
+        // Looks up a group by its full document ID (e.g. "fb_group_000006")
+        // — used to confirm a group actually exists before a join request
+        // is accepted, and to read its name/type for the requester's
+        // fb_users document.
+        public async Task<Models.FirestoreGroupAccount?> FindGroupByIdAsync(string groupId)
+        {
+            DocumentReference docRef = _firestoreDb.Collection(GroupsCollectionName).Document(groupId);
+            DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
+            if (!snapshot.Exists) return null;
+
+            return snapshot.ConvertTo<Models.FirestoreGroupAccount>();
+        }
+
+        // Records a join request on the requester's own fb_users
+        // document — group_id/group_name point at the target group and
+        // group_status moves to Pending. Deliberately does NOT touch
+        // is_owner or account_type: those only change on approval (not
+        // built yet), never at request time.
+        public async Task SubmitJoinRequestAsync(string requesterUserId, string groupId, string groupName)
+        {
+            DocumentReference docRef = _firestoreDb.Collection(UsersCollectionName).Document(requesterUserId);
+            await docRef.UpdateAsync(new Dictionary<string, object>
+            {
+                { "group_id", groupId },
+                { "group_name", groupName },
+                { "group_status", GroupMembershipStatus.Pending }
+            });
+        }
+
+        // Rollback-only — undoes SubmitJoinRequestAsync if the following
+        // Postgres write fails. Restores exactly whatever the requester's
+        // group fields were before the request (null/null/None in the
+        // common case, or their previous Suspended group's fields if
+        // they were requesting to switch groups).
+        public async Task RevertJoinRequestAsync(string requesterUserId, string? previousGroupId, string? previousGroupName, string previousGroupStatus)
+        {
+            DocumentReference docRef = _firestoreDb.Collection(UsersCollectionName).Document(requesterUserId);
+            await docRef.UpdateAsync(new Dictionary<string, object>
+            {
+                { "group_id", previousGroupId! },
+                { "group_name", previousGroupName! },
+                { "group_status", previousGroupStatus }
             });
         }
 

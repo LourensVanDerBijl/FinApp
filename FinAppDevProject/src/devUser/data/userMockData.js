@@ -202,3 +202,42 @@ export async function createGroup(groupName, groupType) {
     return { success: false, message: 'Group creation failed. Please try again.' }
   }
 }
+
+// Submits a request to join an existing group by its full Group ID
+// (e.g. "fb_group_000006"). Same token-refresh reasoning as createGroup.
+// Allowed while the user's current groupStatus is None, Pending,
+// Suspended, or Terminated — Active is rejected by the backend with
+// "You're already part of a group."
+export async function joinGroup(groupId) {
+  const user = auth.currentUser
+  if (!user) {
+    return { success: false, message: 'Your session could not be verified. Please sign in again.' }
+  }
+
+  try {
+    const token = await user.getIdToken()
+
+    const response = await fetchWithTimeout(`${API_BASE}/api/user/group-registration/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, groupId })
+    })
+
+    const result = await response.json()
+
+    if (!result.success) {
+      return { success: false, message: result.message }
+    }
+
+    return {
+      success: true,
+      message: result.message,
+      groupId: result.groupId,
+      groupName: result.groupName,
+      groupStatus: result.groupStatus
+    }
+  } catch (err) {
+    console.error('Error requesting to join group:', err)
+    return { success: false, message: 'We couldn\'t submit your request. Please try again.' }
+  }
+}
