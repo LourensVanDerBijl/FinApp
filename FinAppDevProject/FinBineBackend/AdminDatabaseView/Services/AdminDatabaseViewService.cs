@@ -6,6 +6,8 @@ using FinBineBackend.AdminDatabaseView.Models;
 using FinBineBackend.UserAccRegistration.Data;
 using FinBineBackend.UserAccRegistration.Models;
 using FinBineBackend.UserAccRegistration.Services;
+using FinBineBackend.UserGroupRegistration.Data;
+using FinBineBackend.UserGroupRegistration.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinBineBackend.AdminDatabaseView.Services
@@ -14,23 +16,33 @@ namespace FinBineBackend.AdminDatabaseView.Services
     // row-per-human view across the 3 places a user actually lives —
     // Firebase Authentication, the fb_users Firestore collection, and
     // the Postgres Users table — plus the ability to add a manual/test
-    // row or delete a row out of all 3 with one click.
+    // row or delete a row out of all 3 with one click. Also backs the
+    // page's "Firestore Groups" / "Postgres Groups" list views —
+    // read-only, no add/delete, since groups are created/deleted as a
+    // side effect of user actions (create group, batch test-data
+    // import), not directly here.
     public class AdminDatabaseViewService
     {
         private readonly AdminAuthService _adminAuthService;
         private readonly UserFirestoreService _userFirestoreService;
+        private readonly GroupFirestoreService _groupFirestoreService;
         private readonly UserDbContext _userDb;
+        private readonly GroupDbContext _groupDb;
         private readonly AdminDatabaseViewLoggingService _logger;
 
         public AdminDatabaseViewService(
             AdminAuthService adminAuthService,
             UserFirestoreService userFirestoreService,
+            GroupFirestoreService groupFirestoreService,
             UserDbContext userDb,
+            GroupDbContext groupDb,
             AdminDatabaseViewLoggingService logger)
         {
             _adminAuthService = adminAuthService;
             _userFirestoreService = userFirestoreService;
+            _groupFirestoreService = groupFirestoreService;
             _userDb = userDb;
+            _groupDb = groupDb;
             _logger = logger;
         }
 
@@ -74,6 +86,7 @@ namespace FinBineBackend.AdminDatabaseView.Services
                     FirestoreMemberStatus = fsUser.MemberStatus,
                     FirestoreGroupId = fsUser.GroupId,
                     FirestoreGroupName = fsUser.GroupName,
+                    FirestoreGroupStatus = fsUser.GroupStatus,
                     FirestoreCountry = fsUser.Country,
                     FirestoreJoinedAt = fsUser.JoinedAt,
                     FirestoreLastActivity = fsUser.LastActivity,
@@ -102,6 +115,7 @@ namespace FinBineBackend.AdminDatabaseView.Services
                 row.PostgresDateOfBirth = pgUser.DateOfBirth.ToString("yyyy-MM-dd");
                 row.PostgresAccountType = pgUser.AccountType;
                 row.PostgresGroupId = pgUser.GroupId;
+                row.PostgresGroupStatus = pgUser.GroupStatus;
                 row.PostgresCreatedAt = pgUser.CreatedAt.ToString("o");
             }
 
@@ -135,6 +149,76 @@ namespace FinBineBackend.AdminDatabaseView.Services
                 .ToList();
 
             return new ListDbUsersResponse
+            {
+                Success = true,
+                Message = $"{sortedRows.Count} row(s) found.",
+                Rows = sortedRows
+            };
+        }
+
+        // ------------------------------------------------------------
+        // LIST GROUPS — merges Firestore fb_groups + Postgres Groups
+        // ------------------------------------------------------------
+        public async Task<ListDbGroupsResponse> ListDbGroupsAsync(string token, string ipAddress)
+        {
+            var adminCheck = await _adminAuthService.VerifyTokenAsync(token, ipAddress);
+            if (!adminCheck.Success)
+            {
+                _logger.LogUnauthorizedAccess(ipAddress);
+                return new ListDbGroupsResponse { Success = false, Message = adminCheck.Message };
+            }
+
+            List<UserGroupRegistration.Models.FirestoreGroupAccount> firestoreGroups = await _groupFirestoreService.GetAllGroupsAsync();
+            List<UserGroupRegistration.Models.GroupDbRecord> postgresGroups = await _groupDb.Groups.AsNoTracking().ToListAsync();
+
+            var rows = new Dictionary<string, DbGroupRow>();
+
+            // Firestore's document ID and Postgres's GroupId are the
+            // same string for a group created through the normal flow
+            // (fb_group_######) — no separate join key needed, unlike
+            // the 3-way user merge.
+            foreach (var fsGroup in firestoreGroups)
+            {
+                rows[fsGroup.GroupId] = new DbGroupRow
+                {
+                    RowKey = fsGroup.GroupId,
+                    FirestoreExists = true,
+                    FirestoreGroupId = fsGroup.GroupId,
+                    FirestoreGroupName = fsGroup.GroupName,
+                    FirestoreOwnerUserId = fsGroup.OwnerUserId,
+                    FirestoreCountryCode = fsGroup.CountryCode,
+                    FirestoreCurrencyCode = fsGroup.CurrencyCode,
+                    FirestoreTimeZone = fsGroup.TimeZone,
+                    FirestoreGroupType = fsGroup.GroupType,
+                    FirestoreStatus = fsGroup.Status,
+                    FirestorePaymentStatus = fsGroup.PaymentStatus,
+                    FirestoreCreatedAt = fsGroup.CreatedAt,
+                    FirestoreSubscriptionStartDate = fsGroup.SubscriptionStartDate,
+                    FirestoreSubscriptionEndDate = fsGroup.SubscriptionEndDate,
+                    FirestoreLastActivityAt = fsGroup.LastActivityAt
+                };
+            }
+
+            foreach (var pgGroup in postgresGroups)
+            {
+                if (!rows.TryGetValue(pgGroup.GroupId, out var row))
+                {
+                    row = new DbGroupRow { RowKey = pgGroup.GroupId };
+                    rows[pgGroup.GroupId] = row;
+                }
+
+                row.PostgresExists = true;
+                row.PostgresGroupId = pgGroup.GroupId;
+                row.PostgresOwnerUserId = pgGroup.OwnerUserId;
+                row.PostgresGroupType = pgGroup.GroupType;
+                row.PostgresCreatedAt = pgGroup.CreatedAt.ToString("o");
+            }
+
+            var sortedRows = rows.Values
+                .OrderBy(r => r.RowKey)
+                .ToList();
+
+            return new ListDbGroupsResponse
             {
                 Success = true,
                 Message = $"{sortedRows.Count} row(s) found.",

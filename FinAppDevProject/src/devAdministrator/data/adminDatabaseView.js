@@ -35,6 +35,15 @@ export async function fetchDbUsers() {
   return data
 }
 
+// Returns the merged group rows — one per group, across Firestore
+// (fb_groups) + Postgres (Groups). Read-only: no add/delete, groups
+// are only ever created as a side effect of user actions elsewhere.
+export async function fetchDbGroups() {
+  const token = await getAdminToken()
+  const { data } = await postJson('/api/admin/dev/db-users/list-groups', { token })
+  return data
+}
+
 // Manual/test-data entry — writes a real row into all 3 stores.
 export async function addDbUser(fields) {
   const token = await getAdminToken()

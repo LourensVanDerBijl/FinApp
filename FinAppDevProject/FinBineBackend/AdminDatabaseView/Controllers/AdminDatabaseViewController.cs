@@ -4,11 +4,6 @@ using FinBineBackend.AdminDatabaseView.Services;
 
 namespace FinBineBackend.AdminDatabaseView.Controllers
 {
-    // Backs the Admin > Development > DbUsers page. Every action takes
-    // the admin's Firebase ID token in the body (same convention as
-    // AdminAuthController/UserGroupRegistrationController) and is
-    // re-verified against fb_admin_users on every single call — there's
-    // no separate auth middleware guarding this route.
     [ApiController]
     [Route("api/admin/dev/db-users")]
     public class AdminDatabaseViewController : ControllerBase
@@ -28,6 +23,19 @@ namespace FinBineBackend.AdminDatabaseView.Controllers
 
             string ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             var result = await _service.ListDbUsersAsync(request.Token, ipAddress);
+
+            return result.Success ? Ok(result) : Unauthorized(result);
+        }
+
+        // NEW
+        [HttpPost("list-groups")]
+        public async Task<IActionResult> ListGroups([FromBody] ListDbGroupsRequest request)
+        {
+            if (string.IsNullOrEmpty(request.Token))
+                return BadRequest(new ListDbGroupsResponse { Success = false, Message = "Token is required." });
+
+            string ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var result = await _service.ListDbGroupsAsync(request.Token, ipAddress);
 
             return result.Success ? Ok(result) : Unauthorized(result);
         }

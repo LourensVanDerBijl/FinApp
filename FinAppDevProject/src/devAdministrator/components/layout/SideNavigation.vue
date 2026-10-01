@@ -1,16 +1,24 @@
 <script setup>
 import logo from '../../../assets/SVG/logo.svg'
-import { LayoutDashboard, Users, Activity, ServerCog, Ticket, Code, Settings, LogOut, UserCircle } from 'lucide-vue-next'
+import { LayoutDashboard, Users, Network, ServerCog, Ticket, Code, Settings, LogOut, UserCircle } from 'lucide-vue-next'
+import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { auth } from '../../../firebase/firebaseManager.js'
 import { signOut } from 'firebase/auth'
-import { adminInfo } from '../../data/mockData.js'   // ✅ import admin info
+import { currentAdminProfile, clearAdminProfile } from '../../data/adminSession.js'
 
 const router = useRouter()
+
+const adminDisplayName = computed(() => {
+  const profile = currentAdminProfile.value
+  if (!profile) return '—'
+  return [profile.preferName, profile.surname].filter(Boolean).join(' ') || '—'
+})
 
 async function handleLogout() {
   try {
     await signOut(auth) // ✅ Firebase logout
+    clearAdminProfile()
     router.push('/admin/login')
   } catch (error) {
     console.error("Logout error:", error)
@@ -34,7 +42,7 @@ async function handleLogout() {
     <nav class="sidebar-nav">
       <RouterLink to="/admin/dashboard"><LayoutDashboard size="14" /> Dashboard</RouterLink>
       <RouterLink to="/admin/groups"><Users size="14" /> Groups</RouterLink>
-      <RouterLink to="/admin/activity"><Activity size="14" /> Activity</RouterLink>
+      <RouterLink to="/admin/admin-users"><Network size="14" /> Admin Users</RouterLink>
       <RouterLink to="/admin/api-control"><ServerCog size="14" /> API Control</RouterLink>
       <RouterLink to="/admin/tickets"><Ticket size="14" /> Tickets</RouterLink>
       <hr />
@@ -48,9 +56,9 @@ async function handleLogout() {
         <!-- Red profile icon instead of image -->
         <UserCircle size="28" class="profile-icon" />
         <div>
-          <!-- ✅ dynamic values from mockData -->
-          <p class="admin-name">{{ adminInfo.name }}</p>
-          <p class="admin-role">{{ adminInfo.role }}</p>
+          <!-- dynamic values from the logged-in admin's session -->
+          <p class="admin-name">{{ adminDisplayName }}</p>
+          <p class="admin-role">{{ currentAdminProfile?.accountType ?? '—' }}</p>
         </div>
       </div>
       <button class="logout" @click="handleLogout">

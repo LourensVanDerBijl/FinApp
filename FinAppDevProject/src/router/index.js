@@ -7,6 +7,7 @@ import UserRegistration from '../devUser/pages/Register/UserRegistration.vue'
 // User pages
 import WebHome from '../devUser/pages/B_Auth/WebHome.vue'
 import LoginUser from '../devUser/pages/A_Auth/LoginUser.vue'
+import PasswordReset from '../devUser/pages/A_Auth/PasswordReset.vue'
 
 // User Gaurded pages
 import UserGroupAssign from '../devUser/pages/A_Auth/UserGroupAssign.vue'
@@ -28,13 +29,13 @@ import Terms from '../devUser/pages/B_Auth/Terms.vue'
 import loginAdmin from '../devAdministrator/pages/loginAdmin.vue'
 import Dashboard from '../devAdministrator/pages/Dashboard.vue'
 import Groups from '../devAdministrator/pages/Groups.vue'
-import Activity from '../devAdministrator/pages/Activity.vue'
+import AdminUsers from '../devAdministrator/pages/Admin_Users.vue'
 import ApiControl from '../devAdministrator/pages/ApiControl.vue'
 import Tickets from '../devAdministrator/pages/Tickets.vue'
 import Development from '../devAdministrator/pages/Development.vue'
 import Settings from '../devAdministrator/pages/Settings.vue'
 
-import { auth } from '../firebase/firebaseManager.js'
+import { loadCurrentAdminProfile } from '../devAdministrator/data/adminSession.js'
 import { loadCurrentUserProfile } from '../devUser/data/userSession.js'
 
 const routes = [
@@ -51,6 +52,7 @@ const routes = [
 
   // User routes (no guard)
   { path: '/user/login', name: 'UserLogin', component: LoginUser },
+  { path: '/user/password-reset', name: 'UserPasswordReset', component: PasswordReset },
 
   // User Routes (gaurded routes restricted to user login access)
   {
@@ -86,7 +88,7 @@ const routes = [
       { path: '', redirect: '/admin/dashboard' },
       { path: 'dashboard', name: 'AdminDashboard', component: Dashboard },
       { path: 'groups', name: 'AdminGroups', component: Groups },
-      { path: 'activity', name: 'AdminActivity', component: Activity },
+      { path: 'admin-users', name: 'AdminUsers', component: AdminUsers },
       { path: 'api-control', name: 'AdminApiControl', component: ApiControl },
       { path: 'tickets', name: 'AdminTickets', component: Tickets },
       { path: 'development', name: 'AdminDevelopment', component: Development },
@@ -108,8 +110,8 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   // --- Admin ---
   if (to.path.startsWith('/admin') && to.name !== 'AdminLogin') {
-    const user = auth.currentUser
-    if (!user) {
+    const isValid = await loadCurrentAdminProfile()
+    if (!isValid) {
       return '/admin/login'
     }
   }

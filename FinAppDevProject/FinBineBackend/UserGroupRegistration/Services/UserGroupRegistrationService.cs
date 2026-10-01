@@ -101,6 +101,9 @@ namespace FinBineBackend.UserGroupRegistration.Services
             // Captured before any writes happen, so rollback can restore
             // exactly what the owner had before — not a hardcoded guess.
             string previousAccountType = owner.AccountType;
+            string previousGroupStatus = string.IsNullOrWhiteSpace(owner.GroupStatus)
+                ? GroupMembershipStatus.None
+                : owner.GroupStatus;
 
             var rollbackActions = new List<(string Source, Func<Task> Action)>();
             string? groupId = null;
@@ -137,10 +140,10 @@ namespace FinBineBackend.UserGroupRegistration.Services
                 rollbackActions.Add(("Firestore (fb_groups)", async () => await _groupFirestoreService.DeleteGroupDocumentAsync(groupId)));
 
                 failedAtSource = "Firestore (fb_users)";
-                Console.WriteLine("[GroupRegistration] Assigning owner in fb_users (account_type -> " + groupType + ")...");
+                Console.WriteLine("[GroupRegistration] Assigning owner in fb_users (account_type -> " + groupType + ", group_status -> Active)...");
                 await _groupFirestoreService.AssignOwnerToGroupAsync(owner.UserId, groupId, groupName, groupType);
                 Console.WriteLine("[GroupRegistration] fb_users owner assignment OK");
-                rollbackActions.Add(("Firestore (fb_users)", async () => await _groupFirestoreService.RevertOwnerGroupAssignmentAsync(owner.UserId, previousAccountType)));
+                rollbackActions.Add(("Firestore (fb_users)", async () => await _groupFirestoreService.RevertOwnerGroupAssignmentAsync(owner.UserId, previousAccountType, previousGroupStatus)));
 
                 failedAtSource = "PostgreSQL (Groups)";
                 Console.WriteLine("[GroupRegistration] Saving Postgres Groups row...");
@@ -351,10 +354,13 @@ namespace FinBineBackend.UserGroupRegistration.Services
             }
         }
 
-        // Stamps the owner's Postgres Users row with the new GroupId AND
-        // upgrades AccountType to match the group's type — mirrors what
-        // AssignOwnerToGroupAsync does on the Firestore side. Membership
-        // in a Premium group always means a Premium account.
+        // Stamps the owner's Postgres Users row with the new GroupId,
+        // upgrades AccountType to match the group's type, and moves
+        // GroupStatus to Active — mirrors what AssignOwnerToGroupAsync
+        // does on the Firestore side. Membership in a Premium group
+        // always means a Premium account, and an owner is a confirmed
+        // member of their own group from the moment it's created (no
+        // approval step, unlike joining).
         private async Task UpdatePostgresUserGroupAsync(string userId, string groupId, string groupType)
         {
             var userRecord = await _userDb.Users.FindAsync(userId);
@@ -365,6 +371,7 @@ namespace FinBineBackend.UserGroupRegistration.Services
 
             userRecord.GroupId = groupId;
             userRecord.AccountType = groupType;
+            userRecord.GroupStatus = GroupMembershipStatus.Active;
             await _userDb.SaveChangesAsync();
         }
 

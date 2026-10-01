@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { groups } from '../data/mockData.js'
+import { groups, groupsLoading, groupsError } from '../data/mockData.js'
 import GroupMembersDrawer from '../components/groups/GroupMembersDrawer.vue'
 import {
   Search,
@@ -22,9 +22,9 @@ const searchTerm = ref('')
 
 const filteredGroups = computed(() => {
   const term = searchTerm.value.trim().toLowerCase()
-  if (!term) return groups
+  if (!term) return groups.value
 
-  return groups.filter((group) => {
+  return groups.value.filter((group) => {
     const ownerMatch =
       group.owner.email.toLowerCase().includes(term) ||
       `${group.owner.firstName} ${group.owner.lastName}`.toLowerCase().includes(term)
@@ -49,17 +49,17 @@ const filteredGroups = computed(() => {
 // Summary stat cards
 // ------------------------------------------------------------
 function pct(count) {
-  if (groups.length === 0) return '0'
-  return ((count / groups.length) * 100).toFixed(1)
+  if (groups.value.length === 0) return '0'
+  return ((count / groups.value.length) * 100).toFixed(1)
 }
 
-const totalGroups = computed(() => groups.length)
-const activeGroups = computed(() => groups.filter((g) => g.groupStatus === 'Active').length)
-const premiumGroups = computed(() => groups.filter((g) => g.accountType === 'Premium').length)
-const freeGroups = computed(() => groups.filter((g) => g.accountType === 'Free').length)
-const pendingApprovalGroups = computed(() => groups.filter((g) => g.groupStatus === 'Pending Approval').length)
+const totalGroups = computed(() => groups.value.length)
+const activeGroups = computed(() => groups.value.filter((g) => g.groupStatus === 'Active').length)
+const premiumGroups = computed(() => groups.value.filter((g) => g.accountType === 'Premium').length)
+const freeGroups = computed(() => groups.value.filter((g) => g.accountType === 'Free').length)
+const pendingApprovalGroups = computed(() => groups.value.filter((g) => g.groupStatus === 'Pending Approval').length)
 const terminatedGroups = computed(
-  () => groups.filter((g) => g.groupStatus === 'Terminated' || g.groupStatus === 'Pending Termination').length
+  () => groups.value.filter((g) => g.groupStatus === 'Terminated' || g.groupStatus === 'Pending Termination').length
 )
 
 const summaryCards = computed(() => [
@@ -222,7 +222,11 @@ function paymentStatusClass(status) {
     <!-- SCROLLABLE GROUP CARD LIST                                    -->
     <!-- ============================================================ -->
     <div class="groups-scroll-body">
+      <p v-if="groupsLoading" class="no-results">Loading groups…</p>
+      <p v-else-if="groupsError" class="no-results">Couldn't load groups: {{ groupsError }}</p>
+
       <div
+        v-if="!groupsLoading && !groupsError"
         v-for="group in filteredGroups"
         :key="group.groupId"
         class="group-card"
@@ -292,7 +296,7 @@ function paymentStatusClass(status) {
         </div>
       </div>
 
-      <p v-if="filteredGroups.length === 0" class="no-results">No groups match your search.</p>
+      <p v-if="!groupsLoading && !groupsError && filteredGroups.length === 0" class="no-results">No groups match your search.</p>
     </div>
 
     <GroupMembersDrawer :open="drawerOpen" :group="selectedGroup" @close="closeDrawer" />

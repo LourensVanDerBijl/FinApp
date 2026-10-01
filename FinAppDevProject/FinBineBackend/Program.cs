@@ -2,6 +2,10 @@ using FinBineBackend.AdminAuthentication.Services;
 using FinBineBackend.AdminAuthentication.Logs.Services;
 using FinBineBackend.AdminDatabaseView.Services;
 using FinBineBackend.AdminDatabaseView.Logs.Services;
+using FinBineBackend.AdminGroupView.Services;
+using FinBineBackend.AdminGroupView.Logs.Services;
+using FinBineBackend.AdminTestDataImport.Services;
+using FinBineBackend.AdminTestDataImport.Logs.Services;
 using FinBineBackend.BackEnd.Logs.Services;
 using FinBineBackend.BackEnd.Middleware;
 using FinBineBackend.LoggingLogic.LogDbWrite.Data;
@@ -65,6 +69,32 @@ builder.Services.AddScoped<UserRegistrationService>();
 // UserDbContext rather than opening its own connections.
 // ------------------------------------------------------------
 builder.Services.AddScoped<AdminDatabaseViewService>();
+
+// ------------------------------------------------------------
+// Admin Test Data Import (Development > Test Data page)
+//
+// Batch sibling of AdminDatabaseView — takes a whole uploaded JSON
+// file (groups + owners + members) and writes every row across all 3
+// stores, using the same GenerateNext*Id / Assign*ToGroup calls a
+// real create-group flow uses. Validates the ENTIRE file before
+// writing anything (see TestDataImportValidator), and rolls back the
+// whole batch — not just one group — if any write fails partway
+// through. Reuses AdminAuthService, UserFirestoreService,
+// GroupFirestoreService, UserDbContext, and GroupDbContext rather than
+// opening its own connections.
+// ------------------------------------------------------------
+builder.Services.AddScoped<AdminTestDataImportService>();
+
+// ------------------------------------------------------------
+// Admin Group View (Admin > Groups page)
+//
+// Read-only. Merges fb_groups + fb_users into a nested group-with-
+// members view. Reuses AdminAuthService, GroupFirestoreService, and
+// UserFirestoreService rather than opening its own connections —
+// doesn't touch Postgres at all, since none of the display fields
+// this page needs live there.
+// ------------------------------------------------------------
+builder.Services.AddScoped<AdminGroupViewService>();
 
 // ------------------------------------------------------------
 // User Login Authentication
@@ -131,6 +161,8 @@ builder.Services.AddScoped<UserRegistrationLoggingService>();
 builder.Services.AddScoped<UserLoginLoggingService>();
 builder.Services.AddScoped<UserGroupRegistrationLoggingService>();
 builder.Services.AddScoped<AdminDatabaseViewLoggingService>();
+builder.Services.AddScoped<AdminTestDataImportLoggingService>();
+builder.Services.AddScoped<AdminGroupViewLoggingService>();
 
 // ------------------------------------------------------------
 // Platform Health

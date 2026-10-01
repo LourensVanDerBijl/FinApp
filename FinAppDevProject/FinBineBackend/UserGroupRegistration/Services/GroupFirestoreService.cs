@@ -94,9 +94,11 @@ namespace FinBineBackend.UserGroupRegistration.Services
         }
 
         // Marks the creator as the owner of their new group on their
-        // own fb_users document, and upgrades their account_type to
-        // match the group's type — group membership always determines
-        // account tier.
+        // own fb_users document, upgrades their account_type to match
+        // the group's type, and sets group_status to Active — an owner
+        // is a confirmed member of their own group immediately, no
+        // approval step (unlike a join request, which lands on
+        // Pending).
         public async Task AssignOwnerToGroupAsync(string ownerUserId, string groupId, string groupName, string groupType)
         {
             DocumentReference docRef = _firestoreDb.Collection(UsersCollectionName).Document(ownerUserId);
@@ -105,15 +107,17 @@ namespace FinBineBackend.UserGroupRegistration.Services
                 { "group_id", groupId },
                 { "group_name", groupName },
                 { "is_owner", true },
-                { "account_type", groupType }
+                { "account_type", groupType },
+                { "group_status", GroupMembershipStatus.Active }
             });
         }
 
         // Rollback-only — undoes AssignOwnerToGroupAsync if a later
-        // step fails after it already ran. previousAccountType restores
-        // whatever account_type the owner had before group creation
-        // started.
-        public async Task RevertOwnerGroupAssignmentAsync(string ownerUserId, string previousAccountType)
+        // step fails after it already ran. previousAccountType and
+        // previousGroupStatus restore whatever the owner had before
+        // group creation started (normally "Free"/None, but could be a
+        // stale Suspended/Pending status if they had one).
+        public async Task RevertOwnerGroupAssignmentAsync(string ownerUserId, string previousAccountType, string previousGroupStatus)
         {
             DocumentReference docRef = _firestoreDb.Collection(UsersCollectionName).Document(ownerUserId);
             await docRef.UpdateAsync(new Dictionary<string, object>
@@ -121,7 +125,8 @@ namespace FinBineBackend.UserGroupRegistration.Services
                 { "group_id", null! },
                 { "group_name", null! },
                 { "is_owner", false },
-                { "account_type", previousAccountType }
+                { "account_type", previousAccountType },
+                { "group_status", previousGroupStatus }
             });
         }
 
@@ -136,6 +141,15 @@ namespace FinBineBackend.UserGroupRegistration.Services
             if (!snapshot.Exists) return null;
 
             return snapshot.ConvertTo<Models.FirestoreGroupAccount>();
+        }
+
+        // Used by the admin Database View page's "Firestore Groups" list
+        // — returns every fb_groups document, unfiltered. Same idea as
+        // UserFirestoreService.GetAllUsersAsync.
+        public async Task<List<Models.FirestoreGroupAccount>> GetAllGroupsAsync()
+        {
+            QuerySnapshot snapshot = await _firestoreDb.Collection(GroupsCollectionName).GetSnapshotAsync();
+            return snapshot.Documents.Select(doc => doc.ConvertTo<Models.FirestoreGroupAccount>()).ToList();
         }
 
         // Records a join request on the requester's own fb_users

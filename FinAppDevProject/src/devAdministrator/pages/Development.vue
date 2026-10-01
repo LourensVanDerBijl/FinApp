@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import DevelopmentTopNav from '../components/development/DevelopmentTopNav.vue'
 import DbUsersView from '../components/development/DbUsersView.vue'
-import { Lock } from 'lucide-vue-next'
+import TestDataView from '../components/development/TestDataView.vue'
 
 const activeTab = ref('dbusers')
 
@@ -23,11 +23,7 @@ function handleChange(tab) {
     <DevelopmentTopNav :active-tab="activeTab" @change="handleChange" />
 
     <DbUsersView v-if="activeTab === 'dbusers'" />
-
-    <div v-else class="placeholder">
-      <Lock size="20" />
-      <p>DbSomething isn't wired up yet.</p>
-    </div>
+    <TestDataView v-else-if="activeTab === 'testdata'" />
   </div>
 </template>
 
@@ -58,14 +54,4 @@ function handleChange(tab) {
   margin: 2px 0 0 0;
 }
 
-.placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #94A3B8;
-  font-size: 0.75rem;
-}
 </style>

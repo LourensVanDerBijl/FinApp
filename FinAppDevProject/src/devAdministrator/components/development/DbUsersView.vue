@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { fetchDbUsers, addDbUser, deleteDbUser } from '../../data/adminDatabaseView.js'
+import { ref, computed, onMounted, watch } from 'vue'
+import { fetchDbUsers, addDbUser, deleteDbUser, fetchDbGroups } from '../../data/adminDatabaseView.js'
 import {
   Search,
   RefreshCw,
@@ -48,13 +48,60 @@ const viewOptions = [
   { value: 'default', label: 'Default (status summary)' },
   { value: 'firebase', label: 'Firebase Auth' },
   { value: 'firestore', label: 'Firestore' },
-  { value: 'postgres', label: 'Postgres' }
+  { value: 'postgres', label: 'Postgres' },
+  { value: 'firestoreGroups', label: 'Firestore Groups' },
+  { value: 'postgresGroups', label: 'Postgres Groups' }
 ]
 
 // ------------------------------------------------------------
 // Search
 // ------------------------------------------------------------
 const searchTerm = ref('')
+
+// ------------------------------------------------------------
+// Groups — loaded lazily the first time either group view is picked
+// ------------------------------------------------------------
+const groupRows = ref([])
+const groupsLoading = ref(false)
+const groupsLoadError = ref('')
+const groupsLoaded = ref(false)
+
+async function loadGroupRows() {
+  groupsLoading.value = true
+  groupsLoadError.value = ''
+  try {
+    const data = await fetchDbGroups()
+    if (data.success) {
+      groupRows.value = data.rows || []
+      groupsLoaded.value = true
+    } else {
+      groupsLoadError.value = data.message || 'Failed to load groups.'
+    }
+  } catch (err) {
+    groupsLoadError.value = err.message || 'Failed to load groups.'
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+const isGroupView = computed(() => viewMode.value === 'firestoreGroups' || viewMode.value === 'postgresGroups')
+
+watch(viewMode, (mode) => {
+  if ((mode === 'firestoreGroups' || mode === 'postgresGroups') && !groupsLoaded.value && !groupsLoading.value) {
+    loadGroupRows()
+  }
+})
+
+const filteredGroupRows = computed(() => {
+  const term = searchTerm.value.trim().toLowerCase()
+  if (!term) return groupRows.value
+
+  return groupRows.value.filter((r) => {
+    return [r.rowKey, r.firestoreGroupName, r.firestoreOwnerUserId, r.postgresOwnerUserId]
+      .filter(Boolean)
+      .some((v) => v.toLowerCase().includes(term))
+  })
+})
 
 const filteredRows = computed(() => {
   const term = searchTerm.value.trim().toLowerCase()
@@ -122,6 +169,16 @@ function sourceStatus(row, source) {
 // ------------------------------------------------------------
 // Formatting
 // ------------------------------------------------------------
+function groupStatusBadge(status) {
+  switch (status) {
+    case 'Active': return 'badge-green'
+    case 'Pending': return 'badge-amber'
+    case 'Suspended': return 'badge-red'
+    case 'Terminated': return 'badge-neutral'
+    default: return 'badge-neutral' // None / missing
+  }
+}
+
 function formatDate(isoString) {
   if (!isoString) return '—'
   const d = new Date(isoString)
@@ -265,8 +322,8 @@ async function submitAddUser() {
       </div>
 
       <div class="toolbar-actions">
-        <button class="btn-outline" :disabled="loading" @click="loadRows">
-          <RefreshCw size="12" :class="{ spinning: loading }" /> Refresh
+        <button class="btn-outline" :disabled="loading || groupsLoading" @click="isGroupView ? loadGroupRows() : loadRows()">
+          <RefreshCw size="12" :class="{ spinning: loading || groupsLoading }" /> Refresh
         </button>
         <button class="btn-primary" @click="openAddModal">
           <UserPlus size="12" /> Add User
@@ -275,7 +332,7 @@ async function submitAddUser() {
     </div>
 
     <!-- Summary chips -->
-    <div class="summary-row">
+    <div class="summary-row" v-if="!isGroupView">
       <div class="summary-chip">
         <Layers size="12" /> {{ summary.total }} total rows
       </div>
@@ -292,8 +349,14 @@ async function submitAddUser() {
         <AlertTriangle size="12" /> {{ summary.orphans }} incomplete
       </div>
     </div>
+    <div class="summary-row" v-else>
+      <div class="summary-chip">
+        <Layers size="12" /> {{ groupRows.length }} total groups
+      </div>
+    </div>
 
-    <p v-if="loadError" class="error-banner">{{ loadError }}</p>
+    <p v-if="loadError && !isGroupView" class="error-banner">{{ loadError }}</p>
+    <p v-if="groupsLoadError && isGroupView" class="error-banner">{{ groupsLoadError }}</p>
 
     <!-- Table -->
     <div class="table-scroll">
@@ -404,7 +467,9 @@ async function submitAddUser() {
             <th>Account Email</th>
             <th>Account Type</th>
             <th>Status</th>
+            <th>Group ID</th>
             <th>Group</th>
+            <th>Group Status</th>
             <th>Country</th>
             <th>Joined</th>
             <th class="col-actions">Actions</th>
@@ -418,11 +483,60 @@ async function submitAddUser() {
               <td>{{ row.firestoreAccountEmail || '—' }}</td>
               <td><span class="badge badge-blue">{{ row.firestoreAccountType || '—' }}</span></td>
               <td><span class="badge badge-green">{{ row.firestoreMemberStatus || '—' }}</span></td>
+              <td class="mono">{{ row.firestoreGroupId || '—' }}</td>
               <td>{{ row.firestoreGroupName || '—' }}</td>
+              <td><span class="badge" :class="groupStatusBadge(row.firestoreGroupStatus)">{{ row.firestoreGroupStatus || '—' }}</span></td>
               <td>{{ row.firestoreCountry || '—' }}</td>
               <td>{{ formatDate(row.firestoreJoinedAt) }}</td>
             </template>
-            <td v-else colspan="7" class="missing">Not in Firestore</td>
+            <td v-else colspan="9" class="missing">Not in Firestore</td>
+            <td class="col-actions">
+              <button
+                class="btn-icon-danger"
+                :disabled="deletingKey === row.rowKey"
+                title="Delete from all tables"
+                @click="handleDelete(row)"
+              >
+                <Trash2 size="13" />
+              </button>
+            </td>
+          </tr>
+          <tr v-if="!loading && filteredRows.length === 0">
+            <td class="no-results" colspan="10">No matching records.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ============================================================ -->
+      <!-- POSTGRES VIEW                                                 -->
+      <!-- ============================================================ -->
+      <table v-else-if="viewMode === 'postgres'" class="db-table">
+        <thead>
+          <tr>
+            <th class="col-key">User ID</th>
+            <th>Prefer Name</th>
+            <th>Last Name</th>
+            <th>DOB</th>
+            <th>Account Type</th>
+            <th>Group ID</th>
+            <th>Group Status</th>
+            <th>Created</th>
+            <th class="col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in filteredRows" :key="row.rowKey">
+            <td class="col-key">{{ row.rowKey }}</td>
+            <template v-if="row.postgresExists">
+              <td>{{ row.postgresPreferName || '—' }}</td>
+              <td>{{ row.postgresLastName || '—' }}</td>
+              <td>{{ row.postgresDateOfBirth || '—' }}</td>
+              <td><span class="badge badge-blue">{{ row.postgresAccountType || '—' }}</span></td>
+              <td class="mono">{{ row.postgresGroupId || '—' }}</td>
+              <td><span class="badge" :class="groupStatusBadge(row.postgresGroupStatus)">{{ row.postgresGroupStatus || '—' }}</span></td>
+              <td>{{ formatDate(row.postgresCreatedAt) }}</td>
+            </template>
+            <td v-else colspan="7" class="missing">Not in Postgres</td>
             <td class="col-actions">
               <button
                 class="btn-icon-danger"
@@ -441,46 +555,67 @@ async function submitAddUser() {
       </table>
 
       <!-- ============================================================ -->
-      <!-- POSTGRES VIEW                                                 -->
+      <!-- FIRESTORE GROUPS VIEW                                         -->
+      <!-- ============================================================ -->
+      <table v-else-if="viewMode === 'firestoreGroups'" class="db-table">
+        <thead>
+          <tr>
+            <th class="col-key">Group ID</th>
+            <th>Name</th>
+            <th>Owner User ID</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Payment</th>
+            <th>Country</th>
+            <th>Currency</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in filteredGroupRows" :key="row.rowKey">
+            <td class="col-key">{{ row.rowKey }}</td>
+            <template v-if="row.firestoreExists">
+              <td>{{ row.firestoreGroupName || '—' }}</td>
+              <td class="mono">{{ row.firestoreOwnerUserId || '—' }}</td>
+              <td><span class="badge badge-blue">{{ row.firestoreGroupType || '—' }}</span></td>
+              <td><span class="badge badge-green">{{ row.firestoreStatus || '—' }}</span></td>
+              <td>{{ row.firestorePaymentStatus || '—' }}</td>
+              <td>{{ row.firestoreCountryCode || '—' }}</td>
+              <td>{{ row.firestoreCurrencyCode || '—' }}</td>
+              <td>{{ formatDate(row.firestoreCreatedAt) }}</td>
+            </template>
+            <td v-else colspan="8" class="missing">Not in Firestore</td>
+          </tr>
+          <tr v-if="!groupsLoading && filteredGroupRows.length === 0">
+            <td class="no-results" colspan="9">No matching records.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ============================================================ -->
+      <!-- POSTGRES GROUPS VIEW                                          -->
       <!-- ============================================================ -->
       <table v-else class="db-table">
         <thead>
           <tr>
-            <th class="col-key">User ID</th>
-            <th>Prefer Name</th>
-            <th>Last Name</th>
-            <th>DOB</th>
-            <th>Account Type</th>
-            <th>Group ID</th>
+            <th class="col-key">Group ID</th>
+            <th>Owner User ID</th>
+            <th>Type</th>
             <th>Created</th>
-            <th class="col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in filteredRows" :key="row.rowKey">
+          <tr v-for="row in filteredGroupRows" :key="row.rowKey">
             <td class="col-key">{{ row.rowKey }}</td>
             <template v-if="row.postgresExists">
-              <td>{{ row.postgresPreferName || '—' }}</td>
-              <td>{{ row.postgresLastName || '—' }}</td>
-              <td>{{ row.postgresDateOfBirth || '—' }}</td>
-              <td><span class="badge badge-blue">{{ row.postgresAccountType || '—' }}</span></td>
-              <td>{{ row.postgresGroupId || '—' }}</td>
+              <td class="mono">{{ row.postgresOwnerUserId || '—' }}</td>
+              <td><span class="badge badge-blue">{{ row.postgresGroupType || '—' }}</span></td>
               <td>{{ formatDate(row.postgresCreatedAt) }}</td>
             </template>
-            <td v-else colspan="6" class="missing">Not in Postgres</td>
-            <td class="col-actions">
-              <button
-                class="btn-icon-danger"
-                :disabled="deletingKey === row.rowKey"
-                title="Delete from all tables"
-                @click="handleDelete(row)"
-              >
-                <Trash2 size="13" />
-              </button>
-            </td>
+            <td v-else colspan="3" class="missing">Not in Postgres</td>
           </tr>
-          <tr v-if="!loading && filteredRows.length === 0">
-            <td class="no-results" colspan="8">No matching records.</td>
+          <tr v-if="!groupsLoading && filteredGroupRows.length === 0">
+            <td class="no-results" colspan="4">No matching records.</td>
           </tr>
         </tbody>
       </table>

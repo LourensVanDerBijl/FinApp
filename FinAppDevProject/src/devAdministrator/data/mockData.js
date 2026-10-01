@@ -1,6 +1,8 @@
 // src/devAdministrator/data/mockData.js
 
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth } from '../../firebase/firebaseManager.js'
 
 const API_BASE = 'https://localhost:5001'
 
@@ -12,21 +14,194 @@ export const adminInfo = {
   role: "Super Admin"
 }
 
-export const stats = [
-  { title: 'Total Groups', value: 142, icon: 'groups' },
-  { title: 'Total Users', value: 318, icon: 'users' },
-  { title: 'Open Tickets', value: 4, icon: 'tickets' },
-  { title: 'Pending Responses', value: 2, icon: 'pending' },
-  { title: 'Closed Tickets', value: 7, icon: 'closed' }
-]
+// ---------------------------------------------------------
+// Admin org chart — dummy data for the Admin Users page.
+// Field names (preferName/surname) intentionally match
+// AdminAccount.cs so this drops in cleanly once there's a
+// real "reports_to" column to build the tree from.
+//
+// addOrgChartMember() only mutates this local tree — it's a
+// UI proof of concept, not wired to a backend yet. Creating an
+// admin for real will also need to provision a user-table
+// entry (free Premium account) — that's future work.
+// ---------------------------------------------------------
+export const adminOrgChart = ref({
+  id: 'admin-001',
+  preferName: 'Lourens',
+  surname: 'Van Der Bijl',
+  role: 'CEO',
+  status: 'active',
+  reports: [
+    {
+      id: 'admin-002',
+      preferName: 'Claude',
+      surname: '',
+      role: 'CTO',
+      status: 'active',
+      reports: [
+        {
+          id: 'admin-005',
+          preferName: 'CoPilot',
+          surname: '',
+          role: 'Lead Developer',
+          status: 'active',
+          reports: [
+            {
+              id: 'admin-006',
+              preferName: 'Ane',
+              surname: 'Van Der Bijl',
+              role: 'Senior Developer',
+              status: 'active',
+              reports: []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'admin-003',
+      preferName: 'ChatGPT',
+      surname: '',
+      role: 'COO',
+      status: 'active',
+      reports: []
+    },
+    {
+      id: 'admin-004',
+      preferName: 'Jeandre',
+      surname: 'Van Der Bijl',
+      role: 'CFO',
+      status: 'active',
+      reports: []
+    }
+  ]
+})
 
-export const subscriptionData = {
-  series: [38, 104],
-  labels: ['Premium Groups', 'Free Groups'],
-  total: 142,
-  colors: ['#0d045d', '#0a7633'],
-  seriesPercent: [27, 73]
+function findOrgNode(node, id) {
+  if (node.id === id) return node
+  for (const child of node.reports) {
+    const found = findOrgNode(child, id)
+    if (found) return found
+  }
+  return null
 }
+
+// Needed for removal — a node can't remove itself from its parent's
+// reports array without knowing who the parent is.
+function findOrgParent(node, id) {
+  for (const child of node.reports) {
+    if (child.id === id) return node
+    const found = findOrgParent(child, id)
+    if (found) return found
+  }
+  return null
+}
+
+let nextOrgId = 7
+export function addOrgChartMember(parentId, member) {
+  const parent = findOrgNode(adminOrgChart.value, parentId)
+  if (!parent) return
+
+  parent.reports.push({
+    id: `admin-${String(nextOrgId++).padStart(3, '0')}`,
+    preferName: member.preferName,
+    surname: member.surname,
+    role: member.role,
+    status: 'active',
+    reports: []
+  })
+}
+
+// Toggles a local "terminated" flag — same local-only, no-backend
+// spirit as Groups.vue's Suspend/Terminate menu items.
+export function terminateOrgMember(id) {
+  const node = findOrgNode(adminOrgChart.value, id)
+  if (!node) return
+  node.status = node.status === 'terminated' ? 'active' : 'terminated'
+}
+
+// Only removes leaf nodes — a node with its own direct reports needs
+// those reassigned first, so the UI hides the remove button for it.
+export function removeOrgMember(id) {
+  const parent = findOrgParent(adminOrgChart.value, id)
+  if (!parent) return
+  parent.reports = parent.reports.filter((child) => child.id !== id)
+}
+
+// ---------------------------------------------------------
+// Stats + Subscription donut — live data from the backend
+// (AdminGroupView's /summary endpoint), except the ticket
+// numbers below, which stay mock — there's no ticketing
+// feature built on the backend yet.
+// ---------------------------------------------------------
+const groupSummary = ref(null)
+const groupSummaryLoading = ref(false)
+const groupSummaryError = ref(null)
+
+// No backend for this yet — kept as mock until a Tickets feature exists.
+const ticketStats = {
+  openTickets: 4,
+  pendingResponses: 2,
+  closedTickets: 7
+}
+
+export const stats = computed(() => [
+  { title: 'Total Groups', value: groupSummary.value?.totalGroups ?? '—', icon: 'groups' },
+  { title: 'Total Users', value: groupSummary.value?.totalUsers ?? '—', icon: 'users' },
+  { title: 'Open Tickets', value: ticketStats.openTickets, icon: 'tickets' },
+  { title: 'Pending Responses', value: ticketStats.pendingResponses, icon: 'pending' },
+  { title: 'Closed Tickets', value: ticketStats.closedTickets, icon: 'closed' }
+])
+
+export const subscriptionData = computed(() => {
+  const premium = groupSummary.value?.premiumGroups ?? 0
+  const free = groupSummary.value?.freeGroups ?? 0
+  const total = groupSummary.value?.totalGroups ?? 0
+
+  return {
+    series: [premium, free],
+    labels: ['Premium Groups', 'Free Groups'],
+    total,
+    colors: ['#0d045d', '#0a7633'],
+    seriesPercent: total === 0
+      ? [0, 0]
+      : [(premium / total) * 100, (free / total) * 100]
+  }
+})
+
+export async function loadGroupSummary() {
+  groupSummaryLoading.value = true
+  groupSummaryError.value = null
+
+  try {
+    const token = await getAdminToken()
+    if (!token) {
+      throw new Error('Not signed in.')
+    }
+
+    const response = await fetch(`${API_BASE}/api/admin/groups/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+
+    const result = await response.json()
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Failed to fetch group summary')
+    }
+
+    groupSummary.value = result
+  } catch (err) {
+    console.error('Error fetching group summary:', err)
+    groupSummaryError.value = err.message
+  } finally {
+    groupSummaryLoading.value = false
+  }
+}
+
+// Initial load
+loadGroupSummary()
 
 export const activities = [
   { user: 'John Smith', action: 'created a new group', group: 'Smith Household', time: '2m ago' },
@@ -87,25 +262,92 @@ export const systemResources = [
 ]
 
 // ---------------------------------------------------------
-// Groups — mock data
+// Groups — live data from the backend (AdminGroupView)
 // ---------------------------------------------------------
-// This data is for UI development only.
-// It does NOT represent real users, groups, subscriptions,
-// payments, or Firebase accounts.
+// Same shape as the old mock data below, so Groups.vue and
+// GroupMembersDrawer.vue needed almost no changes:
+// group.owner / group.members[].memberStatus etc. all line up.
 //
-// Member status is tracked within the group:
-// - pending
-// - active
-// - suspended
-//
-// Members are intentionally ordered:
-// 1. Main member / group owner
-// 2. Pending members
-// 3. Active members
-// 4. Suspended members
+// A couple of real-data caveats worth knowing:
+// - groupStatus will currently only ever be "Active" — there's no
+//   backend suspend/terminate path for a group yet, so the row menu's
+//   "Suspend Group" / "Terminate Group" actions in Groups.vue still
+//   only mutate local state, not the database.
+// - subscription.paymentStatus will currently only ever be "Unpaid" —
+//   real billing isn't built yet.
+// - member.memberStatus ('pending' | 'active' | 'suspended') reflects
+//   standing WITHIN the group, not overall account standing.
 // ---------------------------------------------------------
+export const groups = ref([])
+export const groupsLoading = ref(false)
+export const groupsError = ref(null)
 
-export const groups = [
+// Same pattern loginAdmin.vue uses on login: ask the Firebase client
+// SDK for the current user's ID token at the moment it's needed,
+// rather than caching one ourselves.
+//
+// auth.currentUser is null for a brief moment on a fresh page load,
+// while Firebase is still restoring the persisted session — before
+// that restore finishes, any code that reads auth.currentUser directly
+// sees "nobody's signed in" even when they are. Whichever page happens
+// to import this module first is the one exposed to that race, so we
+// wait for Firebase's restore to settle (via onAuthStateChanged) before
+// concluding there's really no user. Only after that resolves do we
+// treat a still-null user as an actual "not signed in".
+function waitForAuthReady() {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe()
+      resolve(user)
+    })
+  })
+}
+
+async function getAdminToken() {
+  const currentUser = auth.currentUser ?? await waitForAuthReady()
+  if (!currentUser) return null
+  return await currentUser.getIdToken()
+}
+
+export async function loadGroups() {
+  groupsLoading.value = true
+  groupsError.value = null
+
+  try {
+    const token = await getAdminToken()
+    if (!token) {
+      throw new Error('Not signed in.')
+    }
+
+    const response = await fetch(`${API_BASE}/api/admin/groups/list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+
+    const result = await response.json()
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Failed to fetch groups')
+    }
+
+    groups.value = result.groups
+  } catch (err) {
+    console.error('Error fetching groups:', err)
+    groupsError.value = err.message
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+// Initial load
+loadGroups()
+
+/* ---------------------------------------------------------
+ * Old mock data, kept below for reference only — no longer used.
+ * Delete once you've confirmed the real data renders correctly.
+ * ---------------------------------------------------------
+export const mockGroups = [
   {
     groupId: 'FB-000142',
     groupName: 'Van Der Bijl Household',
@@ -735,6 +977,7 @@ export const groups = [
     ]
   }
 ]
+*/
 
 // ---------------------------------------------------------
 // Platform Health — live data from the backend

@@ -1,5 +1,5 @@
 <script setup>
-import { Database, Lock } from 'lucide-vue-next'
+import { Database, UploadCloud } from 'lucide-vue-next'
 
 defineProps({
   activeTab: { type: String, required: true }
@@ -9,7 +9,7 @@ const emit = defineEmits(['change'])
 
 const tabs = [
   { key: 'dbusers', label: 'DbUsers', icon: Database, disabled: false },
-  { key: 'dbsomething', label: 'DbSomething', icon: Lock, disabled: true }
+  { key: 'testdata', label: 'Test Data', icon: UploadCloud, disabled: false }
 ]
 </script>
 
